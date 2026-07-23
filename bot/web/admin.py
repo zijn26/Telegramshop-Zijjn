@@ -21,6 +21,7 @@ from sqlalchemy import select as sa_select
 
 from bot.misc import EnvKeys
 from bot.database.methods.audit import log_audit
+from bot.database.models.gacha import GachaSettings, GachaItem, GachaUserWin
 
 logger = logging.getLogger(__name__)
 
@@ -676,6 +677,27 @@ class StorefrontSettingsAdmin(AuditModelView, model=StorefrontSettings):
     icon = "fa-solid fa-store"
 
 
+class GachaSettingsAdmin(AuditModelView, model=GachaSettings):
+    name = "Gacha Settings"
+    name_plural = "Gacha Settings"
+    icon = "fa-solid fa-gamepad"
+    column_list = [GachaSettings.id, GachaSettings.spin_price, GachaSettings.is_active, GachaSettings.title]
+
+
+class GachaItemAdmin(AuditModelView, model=GachaItem):
+    name = "Gacha Item"
+    name_plural = "Gacha Items"
+    icon = "fa-solid fa-gift"
+    column_list = [GachaItem.id, GachaItem.name, GachaItem.item_type, GachaItem.reward_value, GachaItem.drop_rate, GachaItem.stock_quantity, GachaItem.is_active]
+
+
+class GachaUserWinAdmin(AuditModelView, model=GachaUserWin):
+    name = "Gacha Win Log"
+    name_plural = "Gacha Win Logs"
+    icon = "fa-solid fa-trophy"
+    column_list = [GachaUserWin.id, GachaUserWin.user_id, GachaUserWin.item_name, GachaUserWin.reward_details, GachaUserWin.won_at]
+
+
 # Health & Metrics Endpoints
 async def health_check(request: Request) -> JSONResponse:
     db_ok = True
@@ -738,6 +760,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
 
     from bot.web.export import export_routes
     from bot.web.content_manager import content_manager_routes
+    from bot.web.gacha_manager import gacha_manager_routes
 
     async def root_redirect(request: Request) -> RedirectResponse:
         return RedirectResponse(url="/admin")
@@ -747,7 +770,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
         Route("/health", health_check),
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
-    ] + export_routes + content_manager_routes
+    ] + export_routes + content_manager_routes + gacha_manager_routes
 
     app = Starlette(routes=routes)
     app.add_middleware(SessionMiddleware, secret_key=EnvKeys.SECRET_KEY, max_age=1800)
@@ -777,6 +800,9 @@ def create_admin_app(bot: Any = None) -> Starlette:
     admin.add_view(CartItemsAdmin)
     admin.add_view(ContentPageAdmin)
     admin.add_view(StorefrontSettingsAdmin)
+    admin.add_view(GachaSettingsAdmin)
+    admin.add_view(GachaItemAdmin)
+    admin.add_view(GachaUserWinAdmin)
     if EnvKeys.REVIEWS_ENABLED == "1":
         admin.add_view(ReviewsAdmin)
 

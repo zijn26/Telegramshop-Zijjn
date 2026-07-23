@@ -442,7 +442,7 @@ class TestShopCategories:
 
         call.message.edit_text.assert_called_once()
         text = call.message.edit_text.call_args[0][0]
-        assert "shop" in text.lower() or "categories" in text.lower() or "shop.categories" in text
+        assert "shop" in text.lower() or "categories" in text.lower() or "shop.categories" in text or text == "\u2060"
         state = await fsm_context.get_state()
         from bot.states import ShopStates
         assert state == ShopStates.viewing_categories

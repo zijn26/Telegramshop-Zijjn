@@ -14,17 +14,52 @@ def main_menu(role: int, channel: str | None = None, helper: str | None = None, 
     kb.button(text=localize("btn.shop"), callback_data="shop")
     kb.button(text=localize("btn.replenish"), callback_data="replenish_balance")
     kb.button(text=localize("btn.profile"), callback_data="profile")
-    kb.button(text=localize("btn.rules"), callback_data="rules")
     kb.button(text=localize("btn.language"), callback_data="language")
     for text, callback_data in content_pages or []:
         kb.button(text=text, callback_data=callback_data)
-    if helper:
-        kb.button(text=localize("btn.support"), url=f"tg://user?id={helper}")
-    if channel:
-        kb.button(text=localize("btn.channel"), url=f"https://t.me/{channel.lstrip('@')}")
-    if Permission.has_any_admin_perm(role):
-        kb.button(text=localize("btn.admin_menu"), callback_data="console")
     kb.adjust(2)
+
+    # 1. Full-row Entertainment button
+    kb.row(InlineKeyboardButton(text="🎮 Giải trí", callback_data="entertainment"))
+
+    # 2. Rules and Support buttons below Entertainment
+    below_buttons = [InlineKeyboardButton(text=localize("btn.rules"), callback_data="rules")]
+    if helper:
+        below_buttons.append(InlineKeyboardButton(text=localize("btn.support"), url=f"tg://user?id={helper}"))
+    kb.row(*below_buttons)
+
+    # 3. Channel & Admin Menu
+    if channel:
+        kb.row(InlineKeyboardButton(text=localize("btn.channel"), url=f"https://t.me/{channel.lstrip('@')}"))
+    if Permission.has_any_admin_perm(role):
+        kb.row(InlineKeyboardButton(text=localize("btn.admin_menu"), callback_data="console"))
+
+    return kb.as_markup()
+
+
+def entertainment_keyboard() -> InlineKeyboardMarkup:
+    """
+    Sub-menu keyboard for Entertainment section.
+    """
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🎰 Vòng quay Gacha", callback_data="gacha_main")
+    kb.button(text=localize("btn.back"), callback_data="back_to_menu")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def gacha_keyboard(user_balance: float = 0, spin_price: float = 10000) -> InlineKeyboardMarkup:
+    """
+    Main Gacha keyboard menu.
+    """
+    kb = InlineKeyboardBuilder()
+    currency = getattr(EnvKeys, "PAY_CURRENCY", "VND") or "VND"
+    kb.button(text=f"🎰 Quay Gacha ({spin_price:,.0f} {currency})", callback_data="gacha_spin")
+    kb.button(text="🎁 Vật phẩm trúng của tôi", callback_data="gacha_my_wins")
+    kb.button(text="📋 Danh sách quà & Tỷ lệ", callback_data="gacha_items_list")
+    kb.button(text=localize("btn.replenish"), callback_data="replenish_balance")
+    kb.button(text=localize("btn.back"), callback_data="entertainment")
+    kb.adjust(1)
     return kb.as_markup()
 
 

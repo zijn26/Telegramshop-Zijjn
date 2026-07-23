@@ -154,6 +154,38 @@ async def rules_callback_handler(call: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
+from bot.misc.button_registry import register_system_button
+
+@register_system_button(key="entertainment", name="🎮 Giải trí (Entertainment)", help_text="Văn bản hiển thị khi khách bấm nút Giải trí ở Menu chính.")
+@router.callback_query(F.data == "entertainment")
+async def entertainment_callback_handler(call: CallbackQuery, state: FSMContext):
+    """
+    Show Entertainment sub-menu.
+    """
+    from bot.keyboards.inline import entertainment_keyboard
+    from bot.misc.button_registry import get_system_button_text
+
+    custom_text = await get_system_button_text("entertainment")
+    default_text = "<b>🎮 Khu Vực Giải Trí</b>\n\n<i>Các tính năng giải trí đang được phát triển và sẽ sớm ra mắt!</i>"
+    text = custom_text or default_text
+
+    markup = entertainment_keyboard()
+
+    if call.message.text is not None:
+        try:
+            await call.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
+        except TelegramBadRequest as e:
+            if "message is not modified" not in str(e):
+                raise
+    else:
+        try:
+            await call.message.delete()
+        except Exception:
+            pass
+        await call.message.answer(text, reply_markup=markup, parse_mode="HTML")
+    await state.clear()
+
+
 @router.callback_query(F.data == "profile")
 async def profile_callback_handler(call: CallbackQuery, state: FSMContext):
     """
