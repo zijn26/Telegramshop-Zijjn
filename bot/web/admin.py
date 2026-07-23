@@ -737,6 +737,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
     set_notifier_bot(bot)
 
     from bot.web.export import export_routes
+    from bot.web.content_manager import content_manager_routes
 
     async def root_redirect(request: Request) -> RedirectResponse:
         return RedirectResponse(url="/admin")
@@ -746,7 +747,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
         Route("/health", health_check),
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
-    ] + export_routes
+    ] + export_routes + content_manager_routes
 
     app = Starlette(routes=routes)
     app.add_middleware(SessionMiddleware, secret_key=EnvKeys.SECRET_KEY, max_age=1800)
@@ -760,6 +761,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
         # Override the (blank) SQLAdmin index page with our help/cheat-sheet.
         templates_dir=os.path.join(os.path.dirname(__file__), "templates"),
     )
+    app.state.admin = admin
 
     admin.add_view(UserAdmin)
     admin.add_view(RoleAdmin)

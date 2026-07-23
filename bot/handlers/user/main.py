@@ -135,18 +135,20 @@ async def back_to_menu_callback_handler(call: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "rules")
 async def rules_callback_handler(call: CallbackQuery, state: FSMContext):
     """
-    Show rules text if provided in ENV.
+    Show rules text from Web Admin or ENV.
     """
-    rules_data = EnvKeys.RULES
+    from bot.misc.button_registry import get_system_button_text
+    custom_rules = await get_system_button_text("rules")
+    rules_data = custom_rules or EnvKeys.RULES
     if rules_data:
         if call.message.text is not None:
-            await call.message.edit_text(rules_data, reply_markup=back("back_to_menu"))
+            await call.message.edit_text(rules_data, reply_markup=back("back_to_menu"), parse_mode="HTML")
         else:
             try:
                 await call.message.delete()
             except Exception:
                 pass
-            await call.message.answer(rules_data, reply_markup=back("back_to_menu"))
+            await call.message.answer(rules_data, reply_markup=back("back_to_menu"), parse_mode="HTML")
     else:
         await call.answer(localize("rules.not_set"))
     await state.clear()

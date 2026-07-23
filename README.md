@@ -1,4 +1,7 @@
+Thêm nút mới bằng @register_system_button để hệ thống tự quét và add nút vào web admin để chỉnh sửa 
+
 # 🛍️ Telegram Shop Bot
+
 
 A Telegram bot for selling **digital goods** (accounts, keys, licenses…): catalog and
 stock, cart, multiple payment methods, a role-based admin panel (in‑chat **and** web),

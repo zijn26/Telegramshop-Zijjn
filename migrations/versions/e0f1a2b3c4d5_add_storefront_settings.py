@@ -19,6 +19,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("main_menu_description", sa.Text(), nullable=True),
         sa.Column("shop_description", sa.Text(), nullable=True),
+        sa.Column("extra_descriptions", sa.Text(), nullable=True),
     )
     op.execute(
         sa.text(

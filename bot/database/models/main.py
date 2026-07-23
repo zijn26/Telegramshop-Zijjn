@@ -456,6 +456,7 @@ class StorefrontSettings(Database.BASE):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     main_menu_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     shop_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    extra_descriptions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
 async def register_models():

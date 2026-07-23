@@ -1,0 +1,301 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-xl py-3">
+  <!-- Page Header -->
+  <div class="card mb-4 bg-gradient-indigo text-white p-4 border-0 shadow-lg" style="background: linear-gradient(135deg, #312e81 0%, #4338ca 100%); border-radius: 16px;">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <h2 class="mb-1 fw-bold text-white"><i class="fa fa-th-large me-2"></i>Quản lý Trang Nội dung & Nút Telegram</h2>
+        <p class="mb-0 text-white-50 fs-6">Hệ thống tự động phát hiện các Nút Code Hệ thống và hiển thị danh sách cho phép bạn tùy chỉnh văn bản HTML hiển thị trong bot.</p>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-warning font-weight-bold" onclick="openCreateModal()">
+          <i class="fa fa-plus-circle me-1"></i> Tạo nút tùy chỉnh mới
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Code Buttons Section -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h3 class="fw-bold mb-0 text-indigo"><i class="fa fa-code me-2"></i>Văn bản Mô tả Nút Hệ thống & Code Handlers ({{ system_buttons | length }})</h3>
+        <small class="text-muted">Các nút này được tự động phát hiện từ code Python khi bot khởi động. Bạn có thể sửa mô tả bất kỳ nút nào.</small>
+      </div>
+    </div>
+    <div class="row g-3">
+      {% for btn in system_buttons %}
+      <div class="col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm border-0 bg-white hover-shadow transition-all" style="border-radius: 14px; border: 1px solid #e2e8f0;">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center py-2 px-3">
+            <span class="fw-bold text-dark text-truncate me-2" title="{{ btn.name }}">{{ btn.name }}</span>
+            <span class="badge bg-secondary-subtle text-secondary font-monospace" style="font-size: 0.75rem;">{{ btn.key }}</span>
+          </div>
+          <div class="card-body p-3">
+            <p class="text-muted small mb-2" style="min-height: 32px;">{{ btn.help_text }}</p>
+            <div class="card-content-preview p-2 rounded bg-light border" style="height: 80px; overflow-y: auto; font-size: 0.82rem; line-height: 1.4; color: #334155;">
+              {% if system_descs.get(btn.key) %}
+                {{ system_descs.get(btn.key) | safe }}
+              {% else %}
+                <span class="text-muted italic">📌 Chưa thiết lập (sử dụng văn bản mặc định trong code)</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="card-footer bg-light-subtle border-top d-flex justify-content-end py-2 px-3">
+            <button type="button" class="btn btn-sm btn-indigo px-3" onclick="openSystemButtonModal('{{ btn.key }}', '{{ btn.name | escape }}')">
+              ✏️ Sửa mô tả nút này
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <hr class="my-4">
+
+  <!-- Dynamic Content Pages Cards Section -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h3 class="fw-bold mb-0 text-dark"><i class="fa fa-list-alt me-2"></i>Các Trang / Nút Nội dung Tùy chọn ({{ pages | length }})</h3>
+      <small class="text-muted">Các nút trang nội dung phụ do bạn tạo thêm trực tiếp trên Web Admin.</small>
+    </div>
+    <button type="button" class="btn btn-sm btn-primary" onclick="openCreateModal()">
+      <i class="fa fa-plus me-1"></i> Thêm nút tùy chọn mới
+    </button>
+  </div>
+
+  <div class="row g-3">
+    {% for page in pages %}
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100 shadow-sm border-0 bg-white hover-shadow transition-all" style="border-radius: 14px; border: 1px solid #e2e8f0;">
+        <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center py-2 px-3">
+          <span class="fw-bold text-dark fs-5 text-truncate me-2" title="{{ page.button_text }}">
+            <i class="fa fa-hand-o-right text-indigo me-2"></i>{{ page.button_text }}
+          </span>
+          {% if page.is_active %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Bật</span>
+          {% else %}
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">Tắt</span>
+          {% endif %}
+        </div>
+        <div class="card-body p-3">
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            {% if not page.parent_id %}
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle" title="Hiển thị ở menu chính">Menu chính</span>
+            {% else %}
+              <span class="badge bg-info-subtle text-info border border-info-subtle" title="Nút con">Sub-menu #{{ page.parent_id }}</span>
+            {% endif %}
+
+            {% if page.media %}
+              <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa fa-image me-1"></i>{{ page.media_type or 'photo' }}</span>
+            {% endif %}
+            <span class="badge bg-light text-secondary border">Ưu tiên: {{ page.sort_order }}</span>
+          </div>
+
+          <div class="card-content-preview p-2 rounded bg-light border" style="height: 95px; overflow-y: auto; font-size: 0.82rem; line-height: 1.4; color: #334155;">
+            {{ page.content }}
+          </div>
+        </div>
+        <div class="card-footer bg-light-subtle border-top d-flex justify-content-between align-items-center py-2 px-3">
+          <button type="button" class="btn btn-sm btn-indigo px-3" onclick='openEditModalByPageId({{ page.id }})'>
+            ✏️ Sửa nhanh
+          </button>
+          <form method="POST" action="/admin/content-manager/delete" onsubmit="return confirm('Bạn có chắc chắn muốn xóa trang {{ page.button_text }}?');" class="d-inline">
+            <input type="hidden" name="id" value="{{ page.id }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">🗑️ Xóa</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+      <div class="card p-5 text-center bg-light border-dashed">
+        <i class="fa fa-folder-open-o fa-3x text-muted mb-3"></i>
+        <h4>Chưa có nút tùy chọn bổ sung!</h4>
+        <p class="text-muted mb-3">Tất cả các Nút Hệ thống đã sẵn sàng chỉnh sửa ở phần phía trên. Bạn cũng có thể bấm nút dưới đây để tạo thêm trang phụ.</p>
+        <div>
+          <button type="button" class="btn btn-primary" onclick="openCreateModal()">
+            <i class="fa fa-plus me-1"></i> Tạo nút tùy chọn đầu tiên
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Modal Sửa Mô tả Nút Hệ thống -->
+<div class="modal fade" id="systemButtonModal" tabindex="-1" aria-labelledby="sysBtnModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+      <form method="POST" action="/admin/content-manager/save-system-button">
+        <div class="modal-header bg-indigo text-white" style="background-color: #312e81; border-top-left-radius: 16px; border-top-right-radius: 16px;">
+          <h5 class="modal-title mb-0 font-weight-bold text-white" id="sysBtnModalLabel">✏️ Chỉnh sửa Mô tả Nút Hệ thống</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <input type="hidden" name="key" id="sys_button_key" value="">
+
+          <div class="mb-3">
+            <label class="form-label font-weight-bold">Tên Nút Code: <span id="sys_button_name_display" class="text-primary fs-5"></span></label>
+            <div class="text-muted small">Key trong code: <code id="sys_button_key_display"></code></div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="sys_html_content">Nội dung văn bản mô tả (HTML Telegram)</label>
+            <textarea class="form-control font-monospace" name="html_content" id="sys_html_content" rows="7" placeholder="Nhập văn bản mô tả tùy chỉnh cho nút này... Bật thanh công cụ HTML góc dưới màn hình để chọn định dạng chữ đậm, nghiêng, link, quote..."></textarea>
+            <small class="text-muted">Để trống nếu muốn quay về sử dụng văn bản mặc định trong code Python.</small>
+          </div>
+        </div>
+
+        <div class="modal-footer bg-light px-4 py-3">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+          <button type="submit" class="btn btn-indigo px-4 fw-bold"><i class="fa fa-save me-1"></i> Lưu văn bản nút này</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Sửa / Tạo Trang Nội Dung Tùy Chọn -->
+<div class="modal fade" id="pageModal" tabindex="-1" aria-labelledby="pageModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+      <form method="POST" action="/admin/content-manager/save">
+        <div class="modal-header bg-indigo text-white" style="background-color: #312e81; border-top-left-radius: 16px; border-top-right-radius: 16px;">
+          <h5 class="modal-header-title mb-0 font-weight-bold text-white" id="pageModalLabel">✏️ Chỉnh sửa Trang Nội Dung</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4">
+          <input type="hidden" name="id" id="modal_page_id" value="">
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-7">
+              <label class="form-label font-weight-bold" for="modal_button_text">Nhãn nút (Button Text) <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" name="button_text" id="modal_button_text" required placeholder="VD: 📌 Hướng dẫn nạp tiền">
+              <small class="text-muted">Tên hiển thị trên nút bấm trong Telegram bot.</small>
+            </div>
+
+            <div class="col-md-5">
+              <label class="form-label font-weight-bold" for="modal_parent_id">Vị trí (Trang cha)</label>
+              <select class="form-select" name="parent_id" id="modal_parent_id">
+                <option value="">-- Menu chính (Root Menu) --</option>
+                {% for p in pages %}
+                <option value="{{ p.id }}">{{ p.button_text }} (ID #{{ p.id }})</option>
+                {% endfor %}
+              </select>
+              <small class="text-muted">Chọn để tạo nút con trong trang khác.</small>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label font-weight-bold" for="modal_content">Nội dung mô tả (HTML Telegram) <span class="text-danger">*</span></label>
+            <textarea class="form-control font-monospace" name="content" id="modal_content" rows="6" required placeholder="Nhập nội dung mô tả... Sử dụng các thẻ Telegram HTML <b>chữ đậm</b>, <i>chữ nghiêng</i>, <a href='...'>link</a>"></textarea>
+            <small class="text-muted">Được chọn chữ và dùng công cụ định dạng HTML ở góc dưới bên phải màn hình.</small>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-8">
+              <label class="form-label font-weight-bold" for="modal_media">Đường dẫn Media (Ảnh / GIF / Video)</label>
+              <input type="text" class="form-control" name="media" id="modal_media" placeholder="https://example.com/banner.png hoặc Telegram file_id">
+              <small class="text-muted">Tùy chọn: URL ảnh/video gửi kèm trang.</small>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label font-weight-bold" for="modal_media_type">Loại Media</label>
+              <select class="form-select" name="media_type" id="modal_media_type">
+                <option value="">Không có (Chỉ văn bản)</option>
+                <option value="photo">Ảnh (Photo)</option>
+                <option value="animation">GIF Động (Animation)</option>
+                <option value="video">Video</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label font-weight-bold" for="modal_sort_order">Thứ tự hiển thị (Sort Order)</label>
+              <input type="number" class="form-control" name="sort_order" id="modal_sort_order" value="0">
+              <small class="text-muted">Số nhỏ hơn sẽ đứng trước.</small>
+            </div>
+
+            <div class="col-md-6 d-flex align-items-center">
+              <div class="form-check form-switch mt-4">
+                <input class="form-check-input" type="checkbox" name="is_active" id="modal_is_active" value="1" checked>
+                <label class="form-check-label font-weight-bold ms-2" for="modal_is_active">Cho phép hiển thị nút này</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer bg-light px-4 py-3">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+          <button type="submit" class="btn btn-indigo px-4 fw-bold"><i class="fa fa-save me-1"></i> Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const pagesData = {{ pages_data | tojson | safe }};
+const systemDescs = {{ system_descs | tojson | safe }};
+
+function openSystemButtonModal(key, name) {
+  document.getElementById('sys_button_key').value = key;
+  document.getElementById('sys_button_key_display').innerText = key;
+  document.getElementById('sys_button_name_display').innerText = name;
+  document.getElementById('sys_html_content').value = systemDescs[key] || '';
+
+  const modal = new bootstrap.Modal(document.getElementById('systemButtonModal'));
+  modal.show();
+}
+
+function openCreateModal() {
+  document.getElementById('pageModalLabel').innerText = '➕ Tạo Trang / Nút Tùy Chọn Mới';
+  document.getElementById('modal_page_id').value = '';
+  document.getElementById('modal_button_text').value = '';
+  document.getElementById('modal_content').value = '';
+  document.getElementById('modal_parent_id').value = '';
+  document.getElementById('modal_media').value = '';
+  document.getElementById('modal_media_type').value = '';
+  document.getElementById('modal_sort_order').value = '0';
+  document.getElementById('modal_is_active').checked = true;
+
+  const modal = new bootstrap.Modal(document.getElementById('pageModal'));
+  modal.show();
+}
+
+function openEditModalByPageId(id) {
+  const page = pagesData.find(p => p.id === id);
+  if (!page) return;
+
+  document.getElementById('pageModalLabel').innerText = '✏️ Chỉnh sửa Trang: ' + page.button_text;
+  document.getElementById('modal_page_id').value = page.id;
+  document.getElementById('modal_button_text').value = page.button_text;
+  document.getElementById('modal_content').value = page.content;
+  document.getElementById('modal_parent_id').value = page.parent_id || '';
+  document.getElementById('modal_media').value = page.media || '';
+  document.getElementById('modal_media_type').value = page.media_type || '';
+  document.getElementById('modal_sort_order').value = page.sort_order;
+  document.getElementById('modal_is_active').checked = !!page.is_active;
+
+  const modal = new bootstrap.Modal(document.getElementById('pageModal'));
+  modal.show();
+}
+</script>
+
+<style>
+.bg-indigo { background-color: #4f46e5 !important; }
+.text-indigo { color: #4f46e5 !important; }
+.btn-indigo { background-color: #4f46e5; color: #fff; }
+.btn-indigo:hover { background-color: #4338ca; color: #fff; }
+.btn-outline-indigo { border-color: #4f46e5; color: #4f46e5; }
+.btn-outline-indigo:hover { background-color: #4f46e5; color: #fff; }
+.hover-shadow:hover { box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important; transform: translateY(-2px); }
+.transition-all { transition: all 0.2s ease-in-out; }
+.text-truncate-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+</style>
+{% endblock %}
