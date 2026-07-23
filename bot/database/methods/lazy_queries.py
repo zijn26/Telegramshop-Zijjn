@@ -1,5 +1,5 @@
 from typing import Any
-from sqlalchemy import func, select, or_
+from sqlalchemy import case, func, select, or_
 from sqlalchemy import desc
 from bot.database import Database
 from bot.database.models import (
@@ -41,6 +41,59 @@ async def query_items_in_category(category_name: str, offset: int = 0, limit: in
         )
         return [row[0] for row in result.all()]
 
+async def query_grouped_shop_products(
+        max_categories: int = 20, items_per_category: int = 8, max_items: int = 40,
+) -> list[tuple[str, list[dict]]]:
+    """Return a capped shop preview with price and stock data in one query."""
+    category_ids = (
+        select(Categories.id)
+        .order_by(Categories.name.asc())
+        .limit(max_categories)
+        .subquery()
+    )
+    async with Database().session() as s:
+        rows = (await s.execute(
+            select(
+                Categories.name.label("category"),
+                Goods.name.label("name"),
+                Goods.price.label("price"),
+                Goods.sale_percent.label("sale_percent"),
+                Goods.sale_until.label("sale_until"),
+                func.coalesce(func.sum(ItemValues.quantity), 0).label("quantity"),
+                func.max(case((ItemValues.is_infinity.is_(True), 1), else_=0)).label("is_infinite"),
+            )
+            .join(category_ids, category_ids.c.id == Categories.id)
+            .join(Goods, Goods.category_id == Categories.id)
+            .outerjoin(ItemValues, ItemValues.item_id == Goods.id)
+            .group_by(Categories.id, Categories.name, Goods.id, Goods.name, Goods.price, Goods.sale_percent, Goods.sale_until)
+            .order_by(Categories.name.asc(), Goods.name.asc())
+        )).all()
+
+    grouped: list[tuple[str, list[dict]]] = []
+    current_category = None
+    current_items: list[dict] = []
+    displayed = 0
+    for row in rows:
+        if displayed >= max_items:
+            break
+        if row.category != current_category:
+            if current_category is not None:
+                grouped.append((current_category, current_items))
+            current_category, current_items = row.category, []
+        if len(current_items) >= items_per_category:
+            continue
+        current_items.append({
+            "name": row.name,
+            "price": row.price,
+            "sale_percent": row.sale_percent,
+            "sale_until": row.sale_until,
+            "quantity": row.quantity,
+            "is_infinite": bool(row.is_infinite),
+        })
+        displayed += 1
+    if current_category is not None and current_items:
+        grouped.append((current_category, current_items))
+    return grouped
 
 async def query_goods_search(query: str, offset: int = 0, limit: int = 10,
                              count_only: bool = False) -> Any:

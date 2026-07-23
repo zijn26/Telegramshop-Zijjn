@@ -6,9 +6,9 @@ import re
 
 class PaymentRequest(BaseModel):
     """Validate payment request data"""
-    amount: Decimal = Field(..., gt=0, le=100000)
+    amount: Decimal = Field(..., gt=0, le=100000000)
     currency: str = Field(..., min_length=3, max_length=3)
-    provider: str = Field(..., pattern="^(telegram|stars|cryptopay|fiat)$")
+    provider: str = Field(..., pattern="^(telegram|stars|cryptopay|fiat|payos)$")
 
     @field_validator('amount')
     @classmethod
@@ -23,7 +23,7 @@ class PaymentRequest(BaseModel):
 
 class ItemPurchaseRequest(BaseModel):
     """Validate item purchase request"""
-    item_name: Annotated[str, StringConstraints(min_length=1, max_length=100, strip_whitespace=True)]
+    item_name: Annotated[str, StringConstraints(min_length=1, max_length=100)]
     user_id: int = Field(..., gt=0)
 
     @field_validator('item_name')
@@ -52,7 +52,7 @@ class UserDataUpdate(BaseModel):
 
 class CategoryRequest(BaseModel):
     """Validate category operations"""
-    name: Annotated[str, StringConstraints(min_length=1, max_length=100, strip_whitespace=True)]
+    name: Annotated[str, StringConstraints(min_length=1, max_length=100)]
 
     def sanitize_name(self) -> str:
         """Sanitize the category name"""

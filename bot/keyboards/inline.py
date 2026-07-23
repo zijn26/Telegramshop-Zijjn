@@ -3,17 +3,21 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.i18n import localize
 from bot.database.models import Permission
-from bot.misc import LazyPaginator # noqa: F401
+from bot.misc import LazyPaginator, EnvKeys # noqa: F401
 
 
-def main_menu(role: int, channel: str | None = None, helper: str | None = None) -> InlineKeyboardMarkup:
+def main_menu(role: int, channel: str | None = None, helper: str | None = None, content_pages: list[tuple[str, str]] | None = None) -> InlineKeyboardMarkup:
     """
     Main menu.
     """
     kb = InlineKeyboardBuilder()
     kb.button(text=localize("btn.shop"), callback_data="shop")
-    kb.button(text=localize("btn.rules"), callback_data="rules")
+    kb.button(text=localize("btn.replenish"), callback_data="replenish_balance")
     kb.button(text=localize("btn.profile"), callback_data="profile")
+    kb.button(text=localize("btn.rules"), callback_data="rules")
+    kb.button(text=localize("btn.language"), callback_data="language")
+    for text, callback_data in content_pages or []:
+        kb.button(text=text, callback_data=callback_data)
     if helper:
         kb.button(text=localize("btn.support"), url=f"tg://user?id={helper}")
     if channel:
@@ -21,6 +25,17 @@ def main_menu(role: int, channel: str | None = None, helper: str | None = None) 
     if Permission.has_any_admin_perm(role):
         kb.button(text=localize("btn.admin_menu"), callback_data="console")
     kb.adjust(2)
+    return kb.as_markup()
+
+
+def language_keyboard(current_locale: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    options = (("vi", "🇻🇳 Tiếng Việt"), ("en", "🇬🇧 English"), ("ru", "🇷🇺 Русский"))
+    for code, label in options:
+        marker = "✓ " if code == current_locale else ""
+        kb.button(text=f"{marker}{label}", callback_data=f"language:{code}")
+    kb.button(text=localize("btn.back"), callback_data="back_to_menu")
+    kb.adjust(1)
     return kb.as_markup()
 
 
@@ -86,11 +101,11 @@ def back(cb: str = "menu", text: str | None = None) -> InlineKeyboardMarkup:
     return simple_buttons([(text or localize("btn.back"), cb)])
 
 
-def close() -> InlineKeyboardMarkup:
+def close(locale: str | None = None) -> InlineKeyboardMarkup:
     """
     One button 'Close'.
     """
-    return simple_buttons([(localize("btn.close"), "close")])
+    return simple_buttons([(localize("btn.close", locale=locale), "close")])
 
 
 async def lazy_paginated_keyboard(
@@ -197,29 +212,32 @@ def cart_keyboard(items: list[dict]) -> InlineKeyboardMarkup:
 
 def payment_menu(pay_url: str) -> InlineKeyboardMarkup:
     """
-    Buttons under the invoice (CryptoPay, etc.).
+    Buttons under the invoice (CryptoPay, PayOS, etc.).
     """
     kb = InlineKeyboardBuilder()
-    kb.button(text=localize("btn.pay"), url=pay_url)
     kb.button(text=localize("btn.check_payment"), callback_data="check")
-    kb.button(text=localize("btn.back"), callback_data="profile")
+    kb.button(text=localize("btn.pay"), url=pay_url)
+    kb.button(text=localize("btn.back"), callback_data="back_to_menu")
     kb.adjust(1)
     return kb.as_markup()
 
 
 def get_payment_choice() -> InlineKeyboardMarkup:
     """
-    Select a payment method.
+    Select a payment method. Only shows methods with configured environment variables.
     """
-    return simple_buttons(
-        [
-            (localize("btn.pay.crypto"), "pay_cryptopay"),
-            (localize("btn.pay.stars"), "pay_stars"),
-            (localize("btn.pay.tg"), "pay_fiat"),
-            (localize("btn.back"), "replenish_balance"),
-        ],
-        per_row=1,
-    )
+    buttons = []
+    if EnvKeys.PAYOS_CLIENT_ID and EnvKeys.PAYOS_API_KEY and EnvKeys.PAYOS_CHECKSUM_KEY:
+        buttons.append((localize("btn.pay.payos"), "pay_payos"))
+    if EnvKeys.CRYPTO_PAY_TOKEN:
+        buttons.append((localize("btn.pay.crypto"), "pay_cryptopay"))
+    if EnvKeys.STARS_PER_VALUE and float(EnvKeys.STARS_PER_VALUE) > 0:
+        buttons.append((localize("btn.pay.stars"), "pay_stars"))
+    if EnvKeys.TELEGRAM_PROVIDER_TOKEN:
+        buttons.append((localize("btn.pay.tg"), "pay_fiat"))
+
+    buttons.append((localize("btn.back"), "replenish_balance"))
+    return simple_buttons(buttons, per_row=1)
 
 
 def question_buttons(question: str, back_data: str) -> InlineKeyboardMarkup:

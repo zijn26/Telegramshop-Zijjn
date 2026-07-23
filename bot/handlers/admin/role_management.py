@@ -9,7 +9,7 @@ from bot.database.models import Permission
 from bot.database.methods import (
     check_role_cached, check_user_cached, check_role_name_by_id,
     set_role, get_all_roles, get_role_by_id, get_roles_with_max_perms,
-    count_users_with_role, create_role, update_role, delete_role,
+    count_users_with_role, create_role, update_role, delete_role, get_user_language,
 )
 from bot.keyboards import back, close, simple_buttons
 from bot.database.methods.audit import log_audit
@@ -412,10 +412,11 @@ async def assign_role_confirm(call: CallbackQuery):
     )
 
     try:
+        target_locale = await get_user_language(target_id)
         await call.message.bot.send_message(
             chat_id=target_id,
-            text=localize('admin.roles.assigned_notify', role=role['name']),
-            reply_markup=close()
+            text=localize('admin.roles.assigned_notify', locale=target_locale, role=role['name']),
+            reply_markup=close(locale=target_locale)
         )
     except (TelegramBadRequest, TelegramForbiddenError) as e:
         await log_audit("assign_role_notify_fail", level="ERROR", user_id=target_id, details=str(e))

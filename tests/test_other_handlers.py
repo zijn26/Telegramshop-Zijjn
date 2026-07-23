@@ -46,6 +46,9 @@ class TestAnyPaymentMethodEnabled:
     def test_all_enabled(self):
         from bot.handlers.other import _any_payment_method_enabled
         with patch('bot.handlers.other.EnvKeys') as env:
+            env.PAYOS_CLIENT_ID = "client"
+            env.PAYOS_API_KEY = "api"
+            env.PAYOS_CHECKSUM_KEY = "checksum"
             env.CRYPTO_PAY_TOKEN = "token"
             env.STARS_PER_VALUE = 0.91
             env.TELEGRAM_PROVIDER_TOKEN = "provider"
@@ -54,14 +57,31 @@ class TestAnyPaymentMethodEnabled:
     def test_none_enabled(self):
         from bot.handlers.other import _any_payment_method_enabled
         with patch('bot.handlers.other.EnvKeys') as env:
+            env.PAYOS_CLIENT_ID = ""
+            env.PAYOS_API_KEY = ""
+            env.PAYOS_CHECKSUM_KEY = ""
             env.CRYPTO_PAY_TOKEN = ""
             env.STARS_PER_VALUE = 0
             env.TELEGRAM_PROVIDER_TOKEN = ""
             assert _any_payment_method_enabled() is False
 
+    def test_only_payos_enabled(self):
+        from bot.handlers.other import _any_payment_method_enabled
+        with patch('bot.handlers.other.EnvKeys') as env:
+            env.PAYOS_CLIENT_ID = "client"
+            env.PAYOS_API_KEY = "api"
+            env.PAYOS_CHECKSUM_KEY = "checksum"
+            env.CRYPTO_PAY_TOKEN = ""
+            env.STARS_PER_VALUE = 0
+            env.TELEGRAM_PROVIDER_TOKEN = ""
+            assert _any_payment_method_enabled() is True
+
     def test_only_crypto_enabled(self):
         from bot.handlers.other import _any_payment_method_enabled
         with patch('bot.handlers.other.EnvKeys') as env:
+            env.PAYOS_CLIENT_ID = ""
+            env.PAYOS_API_KEY = ""
+            env.PAYOS_CHECKSUM_KEY = ""
             env.CRYPTO_PAY_TOKEN = "token"
             env.STARS_PER_VALUE = 0
             env.TELEGRAM_PROVIDER_TOKEN = ""
@@ -70,6 +90,9 @@ class TestAnyPaymentMethodEnabled:
     def test_only_stars_enabled(self):
         from bot.handlers.other import _any_payment_method_enabled
         with patch('bot.handlers.other.EnvKeys') as env:
+            env.PAYOS_CLIENT_ID = ""
+            env.PAYOS_API_KEY = ""
+            env.PAYOS_CHECKSUM_KEY = ""
             env.CRYPTO_PAY_TOKEN = ""
             env.STARS_PER_VALUE = 0.91
             env.TELEGRAM_PROVIDER_TOKEN = ""

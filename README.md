@@ -269,7 +269,7 @@ are **required**; everything else has a sensible default.
 | `CHANNEL_URL` / `CHANNEL_ID`              | Optional news channel (new‑product posts, subscription check) | –                                 |
 | `HELPER_ID`                               | Support user Telegram ID                                      | –                                 |
 | `RULES`                                   | Rules text shown in the bot                                   | –                                 |
-| `BOT_LOCALE`                              | `ru` or `en`                                                  | `ru`                              |
+| `BOT_LOCALE`                              | Fallback UI locale: `vi`, `en`, or `ru`; each user can choose in the bot | `vi` |
 | `BOT_LOGFILE` / `BOT_AUDITFILE`           | Log file paths                                                | `logs/bot.log` / `logs/audit.log` |
 | `LOG_TO_STDOUT` / `LOG_TO_FILE` / `DEBUG` | `1`/`0` toggles                                               | `1` / `1` / `0`                   |
 | `REVIEWS_ENABLED`                         | Enable product reviews (`1`/`0`)                              | `1`                               |

@@ -179,7 +179,7 @@ class AuditModelView(ModelView):
 
 # Model Views
 class UserAdmin(AuditModelView, model=User):
-    column_list = [User.telegram_id, User.balance, User.role_id, User.referral_id,
+    column_list = [User.telegram_id, User.language, User.balance, User.role_id, User.referral_id,
                    User.registration_date, User.is_blocked]
     column_searchable_list = [User.telegram_id]
     column_sortable_list = [User.telegram_id, User.balance, User.registration_date]

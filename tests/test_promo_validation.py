@@ -373,7 +373,7 @@ class TestValidatePromoForItem:
         await item_factory(name="V4", price=100, values=[("v", False)])
         await _make_promo("VBAL", "balance", "10")
         valid, key, _ = await validate_promo_for_item("VBAL", "V4", 820004)
-        assert (valid, key) == (False, "promo.not_balance_type")
+        assert (valid, key) == (False, "promo.balance_code_for_profile")
 
     async def test_expired(self, item_factory):
         await item_factory(name="V5", price=100, values=[("v", False)])

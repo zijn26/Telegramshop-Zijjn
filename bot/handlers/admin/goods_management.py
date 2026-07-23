@@ -28,6 +28,7 @@ async def goods_management_callback_handler(call: CallbackQuery, state):
         (localize("admin.goods.add_item"), "update_item_amount"),
         (localize("admin.goods.update_position"), "update_item"),
         (localize("admin.goods.sale_manage"), "manage_sale"),
+        ("🔔 Mẫu thông báo hàng về", "set_restock_template"),
         (localize("admin.goods.delete_position"), "delete_item"),
         (localize("admin.goods.show_items"), "show__items_in_position"),
         (localize("btn.back"), "console"),
@@ -345,3 +346,98 @@ async def process_delete_item_from_position(call: CallbackQuery, state: FSMConte
 
     admin_info = await call.message.bot.get_chat(call.from_user.id)
     await log_audit("delete_item_value", user_id=call.from_user.id, resource_type="ItemValue", resource_id=str(item_id), details=f"admin={admin_info.first_name}, position={position_name or '<?>'}")
+
+
+@router.callback_query(F.data == 'set_restock_template', HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def set_restock_template_callback_handler(call: CallbackQuery, state: FSMContext):
+    """Ask administrator for position name to set restock template."""
+    await call.message.edit_text(
+        "🔔 <b>CÀI ĐẶT MẪU THÔNG BÁO HÀNG VỀ</b>\n\nVui lòng nhập <b>tên sản phẩm</b> bạn muốn cài đặt mẫu thông báo:",
+        parse_mode="HTML",
+        reply_markup=back("goods_management")
+    )
+    await state.set_state(GoodsFSM.waiting_restock_template_item_name)
+
+
+@router.message(GoodsFSM.waiting_restock_template_item_name, F.text)
+async def restock_template_get_item_name(message: Message, state: FSMContext):
+    """Validate item and show current template + instructions for template placeholders."""
+    from html import escape as _esc
+    item_name = message.text.strip()
+    item = await get_item_info_cached(item_name)
+    if not item:
+        await message.answer(
+            localize('admin.goods.position.not_found'),
+            reply_markup=back('goods_management')
+        )
+        await state.clear()
+        return
+
+    await state.update_data(restock_template_item_name=item_name)
+    curr_template = item.get("restock_notification_template")
+    curr_display = f"<code>{_esc(curr_template)}</code>" if curr_template else "<i>(Đang dùng văn bản mặc định của hệ thống)</i>"
+
+    prompt_text = (
+        f"🔔 <b>CÀI ĐẶT MẪU THÔNG BÁO HÀNG VỀ</b>\n"
+        f"📦 Sản phẩm: <b>{_esc(item_name)}</b>\n\n"
+        f"📝 <b>Mẫu hiện tại:</b>\n{curr_display}\n\n"
+        f"Vui lòng gửi văn bản thông báo mới cho sản phẩm này.\n"
+        f"Bạn có thể sử dụng định dạng HTML và các từ khóa holder tự động thay thế:\n"
+        f"• <code>{{quantity}}</code> : Số lượng sản phẩm vừa được nạp thêm vào kho\n"
+        f"• <code>{{name}}</code> : Tên sản phẩm\n"
+        f"• <code>{{price}}</code> : Giá sản phẩm\n"
+        f"• <code>{{description}}</code> : Mô tả sản phẩm\n"
+    )
+
+    actions = [
+        ("❌ Xóa mẫu (Dùng mặc định)", "reset_restock_template"),
+        (localize("btn.back"), "goods_management"),
+    ]
+    await message.answer(prompt_text, parse_mode="HTML", reply_markup=simple_buttons(actions, per_row=1))
+    await state.set_state(GoodsFSM.waiting_restock_template_text)
+
+
+@router.message(GoodsFSM.waiting_restock_template_text, F.text)
+async def restock_template_save_text(message: Message, state: FSMContext):
+    """Save custom restock notification template for the position."""
+    from bot.database.methods.update import update_item_restock_template
+    data = await state.get_data()
+    item_name = data.get("restock_template_item_name")
+    if not item_name:
+        await message.answer(localize("errors.something_wrong"), reply_markup=back("goods_management"))
+        await state.clear()
+        return
+
+    template_text = message.text.strip()
+    updated = await update_item_restock_template(item_name, template_text)
+    if updated:
+        await message.answer(
+            f"✅ Đã cập nhật mẫu thông báo khi có hàng cho sản phẩm <b>{item_name}</b> thành công!",
+            parse_mode="HTML",
+            reply_markup=back("goods_management")
+        )
+        admin_info = await message.bot.get_chat(message.from_user.id)
+        await log_audit("update_restock_template", user_id=message.from_user.id, resource_type="Item", resource_id=item_name, details=f"admin={admin_info.first_name}")
+    else:
+        await message.answer(localize("admin.goods.position.not_found"), reply_markup=back("goods_management"))
+
+    await state.clear()
+
+
+@router.callback_query(F.data == 'reset_restock_template', HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def reset_restock_template_callback_handler(call: CallbackQuery, state: FSMContext):
+    """Reset restock template to default system template."""
+    from bot.database.methods.update import update_item_restock_template
+    data = await state.get_data()
+    item_name = data.get("restock_template_item_name")
+    if item_name:
+        await update_item_restock_template(item_name, None)
+        await call.message.edit_text(
+            f"✅ Đã xóa mẫu thông báo riêng của sản phẩm <b>{item_name}</b>. Hệ thống sẽ sử dụng mẫu thông báo mặc định.",
+            parse_mode="HTML",
+            reply_markup=back("goods_management")
+        )
+    else:
+        await call.message.edit_text(localize("errors.something_wrong"), reply_markup=back("goods_management"))
+
+    await state.clear()

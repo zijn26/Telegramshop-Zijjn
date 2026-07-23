@@ -578,3 +578,19 @@ class TestBoughtItems:
         await bought_item_info_callback_handler(call)
 
         call.answer.assert_called_once()
+
+
+def test_bought_item_button_label_orders_code_sequence_date_then_name():
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from bot.handlers.user.shop_and_goods import _bought_item_button_label
+
+    item = SimpleNamespace(
+        unique_id=559354470200321331,
+        bought_datetime=datetime(2026, 7, 21, 10, 56, tzinfo=timezone.utc),
+        item_name="📌 HEHEHEHE",
+    )
+
+    assert _bought_item_button_label(item, sequence=2) == (
+        "🧾 Mã 559354470200321331 • #2 • 2026-07-21 • 📌 HEHEHEHE"
+    )

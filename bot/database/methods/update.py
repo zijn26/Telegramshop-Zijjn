@@ -20,6 +20,21 @@ async def set_role(telegram_id: int, role: int) -> None:
     safe_create_task(invalidate_user_cache(telegram_id))
 
 
+async def set_user_language(telegram_id: int, language: str) -> bool:
+    """Persist one of the supported per-user UI languages."""
+    normalized = (language or "").strip().lower()
+    if normalized not in {"vi", "en", "ru"}:
+        return False
+
+    async with Database().session() as s:
+        result = await s.execute(
+            update(User).where(User.telegram_id == telegram_id).values(language=normalized)
+        )
+
+    safe_create_task(invalidate_user_cache(telegram_id))
+    return bool(result.rowcount)
+
+
 async def update_balance(telegram_id: int, summ: int) -> None:
     """Increase user's balance by `summ` and commit."""
     async with Database().session() as s:
@@ -103,6 +118,21 @@ async def set_item_sale(item_name: str, sale_percent, sale_until) -> bool:
             return False
         goods.sale_percent = sale_percent
         goods.sale_until = sale_until
+
+    safe_create_task(invalidate_item_cache(item_name))
+    return True
+
+
+async def update_item_restock_template(item_name: str, template: str | None) -> bool:
+    """Set or clear custom restock notification template for a Goods item."""
+    async with Database().session() as s:
+        result = await s.execute(
+            select(Goods).where(Goods.name == item_name).with_for_update()
+        )
+        goods = result.scalars().one_or_none()
+        if not goods:
+            return False
+        goods.restock_notification_template = template if template and template.strip() else None
 
     safe_create_task(invalidate_item_cache(item_name))
     return True

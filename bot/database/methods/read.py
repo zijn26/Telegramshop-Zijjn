@@ -7,7 +7,8 @@ from sqlalchemy import func, exists, select, inspect as sa_inspect
 
 from bot.database.models import Database, User, ItemValues, Goods, Categories, Role, BoughtGoods, \
     Operations, ReferralEarnings, Permission
-from bot.database.models.main import PromoCodes, PromoCodeUsages, CartItems, Reviews, StockSubscriptions
+from bot.database.models.main import PromoCodes, PromoCodeUsages, CartItems, Reviews, StockSubscriptions, StorefrontSettings
+from bot.i18n import localize
 from bot.misc.caching import get_cache_manager
 
 F = TypeVar('F', bound=Callable[..., Coroutine[Any, Any, Any]])
@@ -66,6 +67,26 @@ async def check_user(telegram_id: int | str) -> Optional[dict]:
     return await _fetch_one_dict(User, User.telegram_id == telegram_id)
 
 
+async def get_user_language(telegram_id: int | str) -> str:
+    """Return a user's UI language, defaulting to Vietnamese."""
+    async with Database().session() as s:
+        language = (await s.execute(
+            select(User.language).where(User.telegram_id == telegram_id)
+        )).scalar()
+        return language if language in {"vi", "en", "ru"} else "vi"
+
+
+async def get_storefront_descriptions() -> tuple[str, str]:
+    """Return administrator-authored storefront text with localized fallbacks."""
+    async with Database().session() as s:
+        settings = (await s.execute(
+            select(StorefrontSettings).order_by(StorefrontSettings.id).limit(1)
+        )).scalars().first()
+
+    return (
+        settings.main_menu_description if settings and settings.main_menu_description else localize("menu.title"),
+        settings.shop_description if settings and settings.shop_description else "\u2060",
+    )
 async def check_role(telegram_id: int) -> int:
     """Return permission bitmask for user (0 if none)."""
     async with Database().session() as s:
@@ -257,7 +278,7 @@ async def select_item_values_amount(item_name: str) -> int:
     """Return count of item_values for an item (by item name)."""
     async with Database().session() as s:
         return (await s.execute(
-            select(func.count(ItemValues.id))
+            select(func.coalesce(func.sum(ItemValues.quantity), 0))
             .join(Goods, Goods.id == ItemValues.item_id)
             .where(Goods.name == item_name)
         )).scalar() or 0
@@ -608,7 +629,7 @@ async def promo_rule_error(s, promo, user_id, *, goods=None, require_balance=Fal
 _VALIDATE_PROMO_ERRORS = {
     "not_found": "promo.not_found",
     "inactive": "promo.inactive",
-    "wrong_type": "promo.not_balance_type",
+    "wrong_type": "promo.balance_code_for_profile",
     "expired": "promo.expired",
     "max_uses": "promo.max_uses_reached",
     "already_used": "promo.already_used",

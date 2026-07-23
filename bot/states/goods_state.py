@@ -6,6 +6,8 @@ class GoodsFSM(StatesGroup):
     waiting_item_name_delete = State()
     waiting_item_name_show = State()
     waiting_bought_item_id = State()
+    waiting_restock_template_item_name = State()
+    waiting_restock_template_text = State()
 
 
 class AddItemFSM(StatesGroup):

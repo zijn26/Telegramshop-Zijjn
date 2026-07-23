@@ -292,47 +292,63 @@ class TestSuccessfulPaymentIdempotency:
 
 class TestBuyItemHandler:
 
-    async def test_buy_item_success(self, make_callback_query, fsm_context, user_factory, item_factory):
-        from bot.handlers.user.balance_and_payment import buy_item_callback_handler
+    async def test_buy_item_shows_source_choice(self, make_callback_query, fsm_context, user_factory, item_factory):
+        from bot.handlers.user.balance_and_payment import select_payment_source_for_buy
+        from bot.misc import EnvKeys
 
         await user_factory(telegram_id=400020, balance=500)
-        await item_factory(name="TestWidget", price=100, values=[("widget_value_1", False)])
+        await item_factory(name="TestWidgetSource", price=100, values=[("widget_val_choice", False)])
 
         call = make_callback_query(data="buy_item", user_id=400020)
-        await fsm_context.update_data(csrf_item="TestWidget")
+        await fsm_context.update_data(csrf_item="TestWidgetSource")
 
-        with patch('bot.handlers.user.balance_and_payment.EnvKeys') as env:
-            env.PAY_CURRENCY = "RUB"
-            await buy_item_callback_handler(call, fsm_context)
+        with patch.object(EnvKeys, 'PAY_CURRENCY', 'RUB'), patch.object(EnvKeys, 'REFERRAL_PERCENT', 0):
+            await select_payment_source_for_buy(call, fsm_context)
 
-        user = await check_user(400020)
+        # Message edit should be called displaying options
+        call.message.edit_text.assert_called_once()
+
+    async def test_confirm_buy_wallet_success(self, make_callback_query, fsm_context, user_factory, item_factory):
+        from bot.handlers.user.balance_and_payment import confirm_buy_wallet_handler
+        from bot.misc import EnvKeys
+
+        await user_factory(telegram_id=400021, balance=500)
+        await item_factory(name="TestWidgetWallet", price=100, values=[("widget_val_success", False)])
+
+        call = make_callback_query(data="confirm_buy_wallet", user_id=400021)
+        await fsm_context.update_data(csrf_item="TestWidgetWallet")
+
+        with patch.object(EnvKeys, 'PAY_CURRENCY', 'RUB'), patch.object(EnvKeys, 'REFERRAL_PERCENT', 0):
+            await confirm_buy_wallet_handler(call, fsm_context)
+
+        user = await check_user(400021)
         assert user['balance'] == Decimal("400")
 
-    async def test_buy_item_insufficient_funds(self, make_callback_query, fsm_context, user_factory, item_factory):
-        from bot.handlers.user.balance_and_payment import buy_item_callback_handler
+    async def test_confirm_buy_wallet_insufficient_funds(self, make_callback_query, fsm_context, user_factory, item_factory):
+        from bot.handlers.user.balance_and_payment import confirm_buy_wallet_handler
+        from bot.misc import EnvKeys
 
-        await user_factory(telegram_id=400021, balance=10)
-        await item_factory(name="ExpensiveItem", price=1000, values=[("val", False)])
+        await user_factory(telegram_id=400022, balance=10)
+        await item_factory(name="ExpensiveItemWallet", price=1000, values=[("expensive_val", False)])
 
-        call = make_callback_query(data="buy_item", user_id=400021)
-        await fsm_context.update_data(csrf_item="ExpensiveItem")
+        call = make_callback_query(data="confirm_buy_wallet", user_id=400022)
+        await fsm_context.update_data(csrf_item="ExpensiveItemWallet")
 
-        with patch('bot.handlers.user.balance_and_payment.EnvKeys') as env:
-            env.PAY_CURRENCY = "RUB"
-            await buy_item_callback_handler(call, fsm_context)
+        with patch.object(EnvKeys, 'PAY_CURRENCY', 'RUB'), patch.object(EnvKeys, 'REFERRAL_PERCENT', 0):
+            await confirm_buy_wallet_handler(call, fsm_context)
 
         # Balance should be unchanged
-        user = await check_user(400021)
+        user = await check_user(400022)
         assert user['balance'] == Decimal("10")
 
     async def test_buy_item_no_csrf_item(self, make_callback_query, fsm_context, user_factory):
-        from bot.handlers.user.balance_and_payment import buy_item_callback_handler
+        from bot.handlers.user.balance_and_payment import select_payment_source_for_buy
 
-        await user_factory(telegram_id=400022)
+        await user_factory(telegram_id=400023)
 
-        call = make_callback_query(data="buy_item", user_id=400022)
+        call = make_callback_query(data="buy_item", user_id=400023)
         # No csrf_item in state
 
-        await buy_item_callback_handler(call, fsm_context)
+        await select_payment_source_for_buy(call, fsm_context)
 
         call.answer.assert_called()

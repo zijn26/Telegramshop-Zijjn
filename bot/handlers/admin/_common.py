@@ -5,11 +5,11 @@ from bot.logger_mesh import logger
 from bot.misc import EnvKeys
 
 
-async def _notify_restock_safe(bot, item_name: str) -> None:
+async def _notify_restock_safe(bot, item_name: str, added_quantity: int = 1) -> None:
     """Fire restock notifications, never letting a failure break the stock add."""
     from bot.misc.services.restock_notifier import notify_restock
     try:
-        await notify_restock(bot, item_name)
+        await notify_restock(bot, item_name, added_quantity=added_quantity)
     except Exception:
         logger.exception("restock notification failed for %r", item_name)
 

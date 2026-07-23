@@ -124,7 +124,7 @@ class TestShopCategoriesPagination:
         text, kwargs = _last_edit(call)
         assert isinstance(text, str)
         assert kwargs.get("reply_markup") is not None
-        assert (await fsm_context.get_data()).get("categories_paginator") is not None
+        assert (await fsm_context.get_data()).get("grouped_shop_items") == []
 
     async def test_navigate(self, make_callback_query, fsm_context, category_factory):
         await category_factory("CatB")

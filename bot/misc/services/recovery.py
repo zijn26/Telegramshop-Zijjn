@@ -56,12 +56,23 @@ class RecoveryManager:
             try:
                 payment_copies = []
                 async with Database().session() as s:
-                    cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
+                    now = datetime.now(timezone.utc)
+                    # Automatically mark pending payments older than 30m as failed
+                    expired_cutoff = now - timedelta(minutes=30)
+                    await s.execute(
+                        update(Payments)
+                        .where(
+                            Payments.status == "pending",
+                            Payments.created_at < expired_cutoff
+                        )
+                        .values(status="failed")
+                    )
+
                     result = await s.execute(
                         select(Payments).where(
                             Payments.status == "pending",
-                            Payments.created_at < cutoff,
-                            Payments.provider == "cryptopay"
+                            Payments.created_at >= expired_cutoff,
+                            Payments.provider.in_(["cryptopay", "payos"])
                         )
                     )
                     pending_payments = result.scalars().all()
@@ -93,6 +104,7 @@ class RecoveryManager:
         from bot.database.methods.transactions import process_payment_with_referral
         from bot.misc import EnvKeys
         from bot.misc.services.payment import CryptoPayAPI
+        from bot.misc.services.payos import PayOSAPI, PayOSAPIError
         from bot.i18n import localize
 
         p_id = payment['id'] if isinstance(payment, dict) else payment.id
@@ -103,7 +115,34 @@ class RecoveryManager:
         p_currency = payment['currency'] if isinstance(payment, dict) else payment.currency
 
         try:
-            if p_provider == "cryptopay" and EnvKeys.CRYPTO_PAY_TOKEN:
+            if p_provider == "payos" and (EnvKeys.PAYOS_CLIENT_ID and EnvKeys.PAYOS_API_KEY):
+                payos = PayOSAPI()
+                info = await payos.get_payment_link_information(p_external_id)
+                status = info.get("status")
+
+                if status == "PAID":
+                    success, _ = await process_payment_with_referral(
+                        user_id=p_user_id,
+                        amount=p_amount,
+                        provider=p_provider,
+                        external_id=p_external_id,
+                        referral_percent=EnvKeys.REFERRAL_PERCENT
+                    )
+
+                    if success:
+                        logger.info(f"Recovered PayOS payment {p_external_id}")
+                        try:
+                            await self.bot.send_message(
+                                p_user_id,
+                                localize("payments.topped_simple", amount=p_amount, currency=p_currency)
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to notify user {p_user_id}: {e}")
+
+                elif status in ["CANCELLED", "EXPIRED", "EXPIRE", "FAILED"]:
+                    await self._mark_payment_failed(p_id)
+
+            elif p_provider == "cryptopay" and EnvKeys.CRYPTO_PAY_TOKEN:
                 crypto = CryptoPayAPI()
                 info = await crypto.get_invoice(p_external_id)
 
@@ -129,6 +168,8 @@ class RecoveryManager:
                 elif info.get("status") in ["expired", "failed"]:
                     await self._mark_payment_failed(p_id)
 
+        except PayOSAPIError as e:
+            logger.warning(f"PayOS payment check paused for payment {p_id}: {e}")
         except Exception as e:
             logger.error(f"Error processing payment {p_id}: {e}")
 
@@ -141,6 +182,7 @@ class RecoveryManager:
             await s.execute(
                 update(Payments).where(Payments.id == payment_id).values(status="failed")
             )
+            logger.info(f"Marked pending payment #{payment_id} as failed.")
 
     async def periodic_health_check(self):
         """Periodic system health checks"""

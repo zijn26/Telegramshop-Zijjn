@@ -18,6 +18,7 @@ from bot.handlers import register_all_handlers
 from bot.database.models import register_models
 from bot.logger_mesh import configure_logging
 from bot.middleware import setup_rate_limiting, RateLimitConfig
+from bot.middleware.locale import LocaleMiddleware
 from bot.middleware.security import SecurityMiddleware, AuthenticationMiddleware, set_auth_middleware
 from bot.misc.caching import init_cache_manager, get_cache_manager
 from bot.misc.caching import CacheScheduler
@@ -122,6 +123,10 @@ async def _startup(dp: Dispatcher, bot: Bot, ctx: AppContext) -> None:
     auth_middleware = AuthenticationMiddleware()
     set_auth_middleware(auth_middleware)
     await auth_middleware.load_blocked_users()
+
+    locale_middleware = LocaleMiddleware()
+    dp.message.middleware(locale_middleware)
+    dp.callback_query.middleware(locale_middleware)
 
     # Rate limiting (shares auth_middleware's role cache)
     _setup_rate_limiting(dp, auth_middleware)

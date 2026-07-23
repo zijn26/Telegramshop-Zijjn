@@ -206,7 +206,7 @@ async def finish_adding_items_callback_handler(call: CallbackQuery, state):
     await call.message.edit_text("\n".join(text_lines), parse_mode="HTML", reply_markup=back("goods_management"))
 
     if added:
-        await _notify_restock_safe(call.bot, item_name)
+        await _notify_restock_safe(call.bot, item_name, added_quantity=added)
 
     # Optionally notify a channel
     channel_username = _parse_channel_username()

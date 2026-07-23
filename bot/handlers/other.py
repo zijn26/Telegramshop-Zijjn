@@ -43,10 +43,11 @@ async def get_bot_info(event) -> str:
 
 def _any_payment_method_enabled() -> bool:
     """Is there at least one enabled payment method?"""
+    payos_ok = bool(EnvKeys.PAYOS_CLIENT_ID and EnvKeys.PAYOS_API_KEY and EnvKeys.PAYOS_CHECKSUM_KEY)
     cryptopay_ok = bool(EnvKeys.CRYPTO_PAY_TOKEN)
-    tg_stars_ok = bool(EnvKeys.STARS_PER_VALUE)
+    tg_stars_ok = bool(EnvKeys.STARS_PER_VALUE and float(EnvKeys.STARS_PER_VALUE) > 0)
     tg_pay_ok = bool(EnvKeys.TELEGRAM_PROVIDER_TOKEN)
-    return cryptopay_ok or tg_stars_ok or tg_pay_ok
+    return payos_ok or cryptopay_ok or tg_stars_ok or tg_pay_ok
 
 
 def _parse_channel_username() -> str | None:

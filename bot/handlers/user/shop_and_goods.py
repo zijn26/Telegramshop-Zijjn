@@ -1,9 +1,11 @@
+from collections import Counter
 from decimal import Decimal
 from functools import partial
 from html import escape as html_escape
+from pathlib import Path
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, FSInputFile, Message
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
@@ -12,18 +14,21 @@ from bot.database.methods import (
     select_item_values_amount_cached, effective_price
 )
 from bot.database.methods.read import (
-    get_item_avg_rating, has_purchased_item, validate_promo_for_item,
+    get_storefront_descriptions, get_item_avg_rating, has_purchased_item, validate_promo_for_item,
     get_user_review, invalidate_rating_cache, get_item_info, is_subscribed_to_stock,
 )
 from bot.database.methods.create import create_review, subscribe_to_stock
 from bot.database.methods.delete import unsubscribe_from_stock
-from bot.database.methods.lazy_queries import query_item_reviews, query_goods_search, query_items_in_category
+from bot.database.methods.lazy_queries import (
+    query_grouped_shop_products, query_item_reviews, query_goods_search, query_items_in_category,
+)
 from bot.database.methods.transactions import redeem_balance_promo
 from bot.database.methods.audit import log_audit
 from bot.database.models import Permission
 from bot.keyboards import item_info, back, lazy_paginated_keyboard
 from bot.keyboards.inline import simple_buttons, rating_keyboard
 from aiogram.types import InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.i18n import localize
 from bot.misc import EnvKeys, LazyPaginator
 from bot.misc.metrics import get_metrics
@@ -135,43 +140,80 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
 
 # --- Shop / categories / items ---
 
+MAX_GROUPED_SHOP_ITEMS = 40
+MAX_GROUPED_ITEMS_PER_CATEGORY = 8
+
+
+async def _show_grouped_shop_page(call: CallbackQuery, state: FSMContext):
+    """Show a lightweight category-grouped catalog preview on the shop home."""
+    _, shop_description = await get_storefront_descriptions()
+    grouped_products = await query_grouped_shop_products(
+        max_categories=20,
+        items_per_category=MAX_GROUPED_ITEMS_PER_CATEGORY,
+        max_items=MAX_GROUPED_SHOP_ITEMS,
+    )
+    lines = [shop_description]
+    keyboard = InlineKeyboardBuilder()
+    keyboard.row(InlineKeyboardButton(text=localize("shop.view_categories"), callback_data="shop_categories"))
+
+    grouped_items: list[str] = []
+    for category, products in grouped_products:
+        for product in products:
+            item_index = len(grouped_items)
+            grouped_items.append(product["name"])
+            price, _, _ = effective_price(product)
+            quantity = "∞" if product["is_infinite"] else str(product["quantity"])
+            info = localize(
+                "shop.list.price_stock",
+                price=price,
+                currency=EnvKeys.PAY_CURRENCY,
+                quantity=quantity,
+            )
+            keyboard.row(
+                InlineKeyboardButton(text=product["name"], callback_data=f"shop-home-item:{item_index}"),
+                InlineKeyboardButton(text=info, callback_data=f"shop-home-item:{item_index}"),
+            )
+
+    keyboard.row(InlineKeyboardButton(text=localize("btn.close"), callback_data="close"))
+    await call.message.edit_text("\n".join(lines), reply_markup=keyboard.as_markup(), parse_mode="HTML")
+    await state.update_data(grouped_shop_items=grouped_items)
+    await state.set_state(ShopStates.viewing_categories)
+
+
 async def _show_categories_page(call: CallbackQuery, state: FSMContext, page: int):
-    """Render one page of the category list (shared by the shop entry + paginate handlers)."""
+    """Render one page of the full category catalog."""
     paginator_state = (await state.get_data()).get('categories_paginator') if page > 0 else None
     paginator = LazyPaginator(query_categories, per_page=10, state=paginator_state)
-
-    # Pre-fetch page items to build the index map used by the item_callback.
     page_items = await paginator.get_page(page)
     items_index = {cat: idx for idx, cat in enumerate(page_items)}
-
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
         item_text=lambda cat: cat,
         item_callback=lambda cat: f"cat:{items_index[cat]}:{page}",
         page=page,
-        back_cb="back_to_menu",
+        back_cb="shop",
         nav_cb_prefix="categories-page_",
-        extra_rows=[[InlineKeyboardButton(
-            text=localize("btn.search"), callback_data="shop_search",
-        )]],
+        extra_rows=[[InlineKeyboardButton(text=localize("btn.search"), callback_data="shop_search")]],
     )
-
+    markup.inline_keyboard.append([InlineKeyboardButton(text=localize("btn.close"), callback_data="close")])
     await call.message.edit_text(localize("shop.categories.title"), reply_markup=markup)
-    await state.update_data(
-        categories_paginator=paginator.get_state(),
-        category_page_items=list(page_items),
-    )
+    await state.update_data(categories_paginator=paginator.get_state(), category_page_items=list(page_items))
+    await state.set_state(ShopStates.viewing_categories)
 
 
 @router.callback_query(F.data == "shop")
 async def shop_callback_handler(call: CallbackQuery, state: FSMContext):
-    """Show list of shop categories with lazy loading."""
+    """Show the grouped shop home view."""
     metrics = get_metrics()
     if metrics:
         metrics.track_conversion("purchase_funnel", "view_shop", call.from_user.id)
+    await _show_grouped_shop_page(call, state)
 
+
+@router.callback_query(F.data == "shop_categories")
+async def shop_categories_handler(call: CallbackQuery, state: FSMContext):
+    """Open the complete paginated category browser from the shop home."""
     await _show_categories_page(call, state, 0)
-    await state.set_state(ShopStates.viewing_categories)
 
 
 @router.callback_query(F.data.startswith('categories-page_'))
@@ -181,6 +223,17 @@ async def navigate_categories(call: CallbackQuery, state: FSMContext):
     page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
     await _show_categories_page(call, state, page)
 
+
+@router.callback_query(F.data.startswith("shop-home-item:"))
+async def grouped_shop_item_handler(call: CallbackQuery, state: FSMContext):
+    """Open a product selected from the grouped shop home preview."""
+    try:
+        index = int(call.data.split(":", 1)[1])
+        item_name = (await state.get_data()).get("grouped_shop_items", [])[index]
+    except (ValueError, IndexError):
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+    await _open_item(call, state, item_name, "shop")
 
 async def _show_goods_page(call: CallbackQuery, state: FSMContext,
                            category_name: str, cat_page: int, page: int):
@@ -653,6 +706,33 @@ async def view_reviews_handler(call: CallbackQuery, state: FSMContext):
 
 # --- Bought items ---
 
+def _bought_item_button_label(item, sequence: int | None = None) -> str:
+    """Build a compact purchase button: code, optional number, date, name."""
+    bought_at = getattr(item, "bought_datetime", None)
+    date = bought_at.strftime("%Y-%m-%d") if bought_at else "—"
+    number = f" • #{sequence}" if sequence is not None else ""
+    prefix = f"🧾 Mã {item.unique_id}{number} • {date} • "
+    available = max(1, 64 - len(prefix))
+    name = str(item.item_name)
+    if len(name) > available:
+        name = name[: max(1, available - 1)] + "…"
+    return prefix + name
+
+
+async def _bought_item_text_factory(paginator: LazyPaginator, page: int):
+    """Number repeated product names only when they appear more than once."""
+    items = await paginator.get_page(page)
+    totals = Counter(str(item.item_name) for item in items)
+    shown: Counter[str] = Counter()
+
+    def item_text(item) -> str:
+        name = str(item.item_name)
+        shown[name] += 1
+        sequence = shown[name] if totals[name] > 1 else None
+        return _bought_item_button_label(item, sequence)
+
+    return item_text
+
 @router.callback_query(F.data == "bought_items")
 async def bought_items_callback_handler(call: CallbackQuery, state: FSMContext):
     """
@@ -666,7 +746,7 @@ async def bought_items_callback_handler(call: CallbackQuery, state: FSMContext):
 
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
-        item_text=lambda item: item.item_name,
+        item_text=await _bought_item_text_factory(paginator, 0),
         item_callback=lambda item: f"bought-item:{item.id}:bought-goods-page_user_0",
         page=0,
         back_cb="profile",
@@ -725,7 +805,7 @@ async def navigate_bought_items(call: CallbackQuery, state: FSMContext):
 
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
-        item_text=lambda item: item.item_name,
+        item_text=await _bought_item_text_factory(paginator, current_index),
         item_callback=lambda item: f"bought-item:{item.id}:{pre_back}",
         page=current_index,
         back_cb=back_cb,
@@ -772,3 +852,9 @@ async def bought_item_info_callback_handler(call: CallbackQuery):
         localize("purchases.item.value", value=html_escape(str(item["value"]))),
     ])
     await call.message.edit_text(text, parse_mode='HTML', reply_markup=back(back_data))
+    if item.get("delivery_type") in ("file", "both") and item.get("file_path"):
+        path = Path(item["file_path"])
+        if path.is_file():
+            await call.message.answer_document(
+                FSInputFile(path, filename=item.get("file_name") or path.name)
+            )

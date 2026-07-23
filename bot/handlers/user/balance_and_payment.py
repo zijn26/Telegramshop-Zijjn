@@ -1,5 +1,6 @@
 import hashlib
 import json
+import random
 from decimal import Decimal, ROUND_HALF_UP
 from html import escape as html_escape
 
@@ -16,7 +17,7 @@ from bot.misc import EnvKeys, ItemPurchaseRequest, validate_telegram_id, validat
     sanitize_html
 from bot.handlers.other import _any_payment_method_enabled, is_safe_item_name
 from bot.misc.metrics import get_metrics
-from bot.misc.services import CryptoPayAPI, CryptoPayAPIError, send_stars_invoice, send_fiat_invoice
+from bot.misc.services import CryptoPayAPI, CryptoPayAPIError, PayOSAPI, PayOSAPIError, send_stars_invoice, send_fiat_invoice
 from bot.misc.services.payment import _minor_units_for
 from bot.filters import ValidAmountFilter
 from bot.i18n import localize
@@ -54,7 +55,7 @@ async def replenish_balance_callback_handler(call: CallbackQuery, state: FSMCont
 
     await call.message.edit_text(
         localize("payments.replenish_prompt", currency=EnvKeys.PAY_CURRENCY),
-        reply_markup=back('profile')
+        reply_markup=back('back_to_menu')
     )
     await state.set_state(BalanceStates.waiting_amount)
 
@@ -104,7 +105,7 @@ async def invalid_amount(message: Message, state: FSMContext):
 
 @router.callback_query(
     BalanceStates.waiting_payment,
-    F.data.in_(["pay_cryptopay", "pay_stars", "pay_fiat"])
+    F.data.in_(["pay_payos", "pay_cryptopay", "pay_stars", "pay_fiat"])
 )
 async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
     """Create an invoice for the chosen payment method."""
@@ -119,6 +120,7 @@ async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
 
     # Map callback data to provider
     provider_map = {
+        "pay_payos": "payos",
         "pay_cryptopay": "cryptopay",
         "pay_stars": "stars",
         "pay_fiat": "fiat"
@@ -136,7 +138,88 @@ async def process_replenish_balance(call: CallbackQuery, state: FSMContext):
         amount_dec = payment_request.amount
         ttl_seconds = int(EnvKeys.PAYMENT_TIME)
 
-        if call.data == "pay_cryptopay":
+        if call.data == "pay_payos":
+            if not (EnvKeys.PAYOS_CLIENT_ID and EnvKeys.PAYOS_API_KEY and EnvKeys.PAYOS_CHECKSUM_KEY):
+                await call.answer(localize("payments.not_configured"), show_alert=True)
+                return
+
+            try:
+                import time
+                from urllib.parse import quote_plus
+                order_code = int(time.time() * 1000) % 9007199254740991
+                payos = PayOSAPI()
+
+                bot_info = await call.bot.get_me()
+                redirect_url = f"https://t.me/{bot_info.username}"
+
+                random_code = random.randint(100000000, 999999999)
+                invoice = await payos.create_payment_link(
+                    order_code=order_code,
+                    amount=int(amount_dec),
+                    description=f"{random_code}",
+                    cancel_url=redirect_url,
+                    return_url=redirect_url,
+                )
+            except PayOSAPIError as e:
+                await log_audit("payos_error", level="ERROR", user_id=call.from_user.id, resource_type="Payment", details=f"[{e.code}] {e.desc}")
+                await call.answer(localize("payments.payos.api_error", error=e.desc), show_alert=True)
+                return
+            except Exception as e:
+                await log_audit("payos_invoice_fail", level="ERROR", user_id=call.from_user.id, resource_type="Payment", details=str(e))
+                await call.answer(localize("payments.payos.create_fail", error=str(e)), show_alert=True)
+                return
+
+            pay_url = invoice.get("checkoutUrl", "")
+            bin_code = invoice.get("bin", "")
+            account_no = invoice.get("accountNumber", "")
+            account_name = invoice.get("accountName", "")
+            order_desc = invoice.get("description", str(random_code))
+            qr_code_str = invoice.get("qrCode", "")
+
+            if bin_code and account_no:
+                qr_image_url = f"https://img.vietqr.io/image/{bin_code}-{account_no}-compact2.png?amount={int(amount_dec)}&addInfo={quote_plus(str(order_desc))}&accountName={quote_plus(str(account_name))}"
+            elif qr_code_str:
+                qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=400x400&data={quote_plus(qr_code_str)}"
+            else:
+                qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=400x400&data={quote_plus(pay_url)}"
+
+            await create_pending_payment(
+                provider="payos",
+                external_id=str(order_code),
+                user_id=call.from_user.id,
+                amount=int(amount_dec),
+                currency=payment_request.currency,
+            )
+
+            await state.update_data(invoice_id=str(order_code), payment_type="payos")
+
+            formatted_amount = f"{int(amount_dec):,}".replace(",", ".")
+            caption = (
+                f"📲 <b>MÃ VIETQR THANH TOÁN (PayOS)</b>\n\n"
+                f"💳 <b>Số tài khoản</b>: <code>{account_no}</code>\n"
+                f"👤 <b>Chủ tài khoản</b>: <b>{html_escape(account_name)}</b>\n"
+                f"💵 <b>Số tiền</b>: <code>{formatted_amount}</code> {payment_request.currency}\n"
+                f"📝 <b>Nội dung chuyển khoản</b>: <code>{html_escape(order_desc)}</code>\n\n"
+                f"⚠️ <b>LƯU Ý QUAN TRỌNG:</b>\n"
+                f"• Nhấp vào số tài khoản hoặc nội dung để <b>sao chép nhanh</b>.\n"
+                f"• Chuyển <b>chính xác số tiền</b> và <b>nội dung chuyển khoản</b>.\n"
+                f"• Hóa đơn có hiệu lực trong <b>{int(ttl_seconds / 60)} phút</b>.\n\n"
+                f"<i>Sau khi chuyển khoản xong, vui lòng nhấn <b>\"🔄 Kiểm tra thanh toán\"</b> bên dưới.</i>"
+            )
+
+            try:
+                await call.message.delete()
+            except Exception:
+                pass
+
+            await call.message.answer_photo(
+                photo=qr_image_url,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=payment_menu(pay_url)
+            )
+
+        elif call.data == "pay_cryptopay":
             if not EnvKeys.CRYPTO_PAY_TOKEN:
                 await call.answer(localize("payments.not_configured"), show_alert=True)
                 return
@@ -234,7 +317,87 @@ async def checking_payment(call: CallbackQuery, state: FSMContext):
         await call.answer(localize("payments.no_active_invoice"), show_alert=True)
         return
 
-    if payment_type == "cryptopay":
+    if payment_type == "payos":
+        invoice_id = data.get("invoice_id")
+        if not invoice_id:
+            await call.answer(localize("payments.invoice_not_found"), show_alert=True)
+            await state.clear()
+            return
+
+        try:
+            payos = PayOSAPI()
+            info = await payos.get_payment_link_information(invoice_id)
+        except PayOSAPIError as e:
+            await log_audit("payos_check_error", level="ERROR", user_id=user_id, resource_type="Payment", details=f"[{e.code}] {e.desc}")
+            await call.answer(localize("payments.payos.api_error", error=e.desc), show_alert=True)
+            return
+        except Exception as e:
+            await log_audit("payos_get_fail", level="ERROR", user_id=user_id, resource_type="Payment", details=str(e))
+            await call.answer(localize("payments.crypto.check_fail", error=str(e)), show_alert=True)
+            return
+
+        status = info.get("status")
+        if status == "PAID":
+            balance_amount = Decimal(str(info.get("amountPaid") or info.get("amount", "0"))).quantize(Decimal("0.01"))
+
+            if balance_amount <= 0:
+                await call.answer(localize("payments.unable_determine_amount"), show_alert=True)
+                return
+
+            success, error_msg = await process_payment_with_referral(
+                user_id=user_id,
+                amount=balance_amount,
+                provider="payos",
+                external_id=str(invoice_id),
+                referral_percent=EnvKeys.REFERRAL_PERCENT
+            )
+
+            if not success:
+                if error_msg == "already_processed":
+                    await call.answer(localize("payments.already_processed"), show_alert=True)
+                else:
+                    await call.answer(localize("errors.general_error", e=error_msg), show_alert=True)
+                return
+
+            metrics = get_metrics()
+            if metrics:
+                metrics.track_event("payment", user_id, {"amount": balance_amount, "provider": "payos"})
+
+            await _notify_referrer_bonus(call.bot, user_id, balance_amount, call.from_user.first_name, call.from_user.id)
+
+            success_msg = localize("payments.topped_simple",
+                                   amount=balance_amount,
+                                   currency=EnvKeys.PAY_CURRENCY)
+
+            await call.answer(success_msg, show_alert=True)
+
+            if call.message.text is not None:
+                await call.message.edit_text(success_msg, reply_markup=back('profile'))
+            else:
+                try:
+                    await call.message.delete()
+                except Exception:
+                    pass
+                await call.message.answer(success_msg, reply_markup=back('profile'))
+            await state.clear()
+
+            try:
+                user_info = await call.bot.get_chat(user_id)
+                await log_audit(
+                    "balance_replenish",
+                    user_id=user_id,
+                    resource_type="Payment",
+                    details=f"name={user_info.first_name}, amount={balance_amount} {EnvKeys.PAY_CURRENCY}, provider=payos",
+                )
+            except (TelegramBadRequest, TelegramForbiddenError) as e:
+                await log_audit("balance_replenish", level="ERROR", user_id=user_id, resource_type="Payment", details=f"log_failed: {e}")
+
+        elif status in ["PENDING", "PROCESSING"]:
+            await call.answer(localize("payments.not_paid_yet"), show_alert=True)
+        else:
+            await call.answer(localize("payments.expired"), show_alert=True)
+
+    elif payment_type == "cryptopay":
         invoice_id = data.get("invoice_id")
         if not invoice_id:
             await call.answer(localize("payments.invoice_not_found"), show_alert=True)
@@ -284,12 +447,20 @@ async def checking_payment(call: CallbackQuery, state: FSMContext):
             # Send a notification to the referrer
             await _notify_referrer_bonus(call.bot, user_id, balance_amount, call.from_user.first_name, call.from_user.id)
 
-            await call.message.edit_text(
-                localize("payments.topped_simple",
-                         amount=balance_amount,
-                         currency=EnvKeys.PAY_CURRENCY),
-                reply_markup=back('profile')
-            )
+            success_msg = localize("payments.topped_simple",
+                                   amount=balance_amount,
+                                   currency=EnvKeys.PAY_CURRENCY)
+
+            await call.answer(success_msg, show_alert=True)
+
+            if call.message.text is not None:
+                await call.message.edit_text(success_msg, reply_markup=back('profile'))
+            else:
+                try:
+                    await call.message.delete()
+                except Exception:
+                    pass
+                await call.message.answer(success_msg, reply_markup=back('profile'))
             await state.clear()
 
             # Audit log
@@ -430,10 +601,71 @@ async def successful_payment_handler(message: Message):
 
 
 @router.callback_query(F.data == "buy_item")
-async def buy_item_callback_handler(call: CallbackQuery, state: FSMContext):
-    """Processing the purchase of goods with full transactional security."""
+async def select_payment_source_for_buy(call: CallbackQuery, state: FSMContext):
+    """Display payment source selection (Wallet balance or Top up) before purchasing."""
+    data = await state.get_data()
+    raw_item_name = data.get('csrf_item')
+
+    if not raw_item_name:
+        try:
+            await call.answer(localize("middleware.security.invalid_csrf"), show_alert=True)
+        except TelegramBadRequest:
+            pass
+        return
+
+    from bot.database.methods.read import get_item_info, get_promo_code, check_user_cached
+    from bot.database.methods.pricing import effective_price, apply_promo_discount
+    from bot.keyboards.inline import simple_buttons
+
+    item = await get_item_info(raw_item_name)
+    if not item:
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+
+    user_info = await check_user_cached(call.from_user.id)
+    user_balance = Decimal(str(user_info.get('balance', 0))).quantize(Decimal("0.01"))
+
+    base_price, on_sale, original_price = effective_price(item)
+    item_price = base_price
+
+    applied_promo = data.get('applied_promo')
+    if applied_promo:
+        promo = await get_promo_code(applied_promo)
+        if promo and promo.get('discount_type') and promo.get('discount_value'):
+            item_price = apply_promo_discount(base_price, promo['discount_type'], promo['discount_value'], 1)
+
+    formatted_price = f"{int(item_price):,}".replace(",", ".")
+    formatted_balance = f"{int(user_balance):,}".replace(",", ".")
+    currency = EnvKeys.PAY_CURRENCY
+
+    text = (
+        f"💳 <b>CHỌN NGUỒN TIỀN THANH TOÁN</b>\n\n"
+        f"📦 <b>Sản phẩm</b>: <b>{html_escape(item['name'])}</b>\n"
+        f"💵 <b>Giá thanh toán</b>: <code>{formatted_price}</code> {currency}\n"
+        f"💰 <b>Số dư ví hiện tại</b>: <code>{formatted_balance}</code> {currency}\n\n"
+        f"Vui lòng chọn phương thức thanh toán bên dưới:"
+    )
+
+    buttons = [
+        (f"💳 Trừ từ ví (Số dư: {formatted_balance} {currency})", "confirm_buy_wallet"),
+        ("➕ Nạp số dư", "replenish_balance"),
+        (localize("btn.back"), "back_to_item"),
+    ]
+
+    if call.message.text is not None:
+        await call.message.edit_text(text, reply_markup=simple_buttons(buttons, per_row=1), parse_mode="HTML")
+    else:
+        try:
+            await call.message.delete()
+        except Exception:
+            pass
+        await call.message.answer(text, reply_markup=simple_buttons(buttons, per_row=1), parse_mode="HTML")
+
+
+@router.callback_query(F.data == "confirm_buy_wallet")
+async def confirm_buy_wallet_handler(call: CallbackQuery, state: FSMContext):
+    """Processing the purchase of goods from wallet balance."""
     try:
-        # Get item name from state (stored when viewing item info)
         data = await state.get_data()
         raw_item_name = data.get('csrf_item')
 
@@ -449,7 +681,6 @@ async def buy_item_callback_handler(call: CallbackQuery, state: FSMContext):
             user_id=call.from_user.id
         )
 
-        # Additional check for SQL injection
         if not is_safe_item_name(purchase_request.item_name):
             await call.answer(
                 localize("errors.invalid_item_name"),
@@ -458,20 +689,16 @@ async def buy_item_callback_handler(call: CallbackQuery, state: FSMContext):
             await log_audit("suspicious_item_name", level="WARNING", user_id=call.from_user.id, resource_type="Item", details=raw_item_name)
             return
 
-        # User_id validation
         try:
             user_id = validate_telegram_id(call.from_user.id)
-        except ValueError as e:
+        except ValueError:
             await call.answer(localize("errors.invalid_user"), show_alert=True)
             return
 
-        # Show the processing indicator
         await call.answer(localize("shop.purchase.processing"))
 
-        # Get promo code from state if applied
         promo_code = data.get('applied_promo')
 
-        # Execute a transactional purchase
         success, message, purchase_data = await buy_item_transaction(
             user_id,
             purchase_request.item_name,
@@ -479,7 +706,6 @@ async def buy_item_callback_handler(call: CallbackQuery, state: FSMContext):
         )
 
         if not success:
-            # Error handling
             error_messages = {
                 "user_not_found": "shop.purchase.fail.user_not_found",
                 "item_not_found": "shop.item.not_found",
@@ -492,16 +718,30 @@ async def buy_item_callback_handler(call: CallbackQuery, state: FSMContext):
                 message=message
             )
 
-            await call.message.edit_text(
-                error_text,
-                reply_markup=back('back_to_item')
-            )
+            from bot.keyboards.inline import simple_buttons
+            fail_buttons = [
+                ("➕ Nạp số dư", "replenish_balance"),
+                (localize("btn.back"), "back_to_item"),
+            ]
+
+            if call.message.text is not None:
+                await call.message.edit_text(
+                    error_text,
+                    reply_markup=simple_buttons(fail_buttons, per_row=1)
+                )
+            else:
+                try:
+                    await call.message.delete()
+                except Exception:
+                    pass
+                await call.message.answer(
+                    error_text,
+                    reply_markup=simple_buttons(fail_buttons, per_row=1)
+                )
 
             if message not in error_messages:
                 await log_audit("purchase_error", level="ERROR", user_id=user_id, resource_type="Item", resource_id=purchase_request.item_name, details=message)
             return
-
-        # Successful purchase - sanitize the output
 
         if metrics:
             metrics.track_event("purchase", call.from_user.id, {
@@ -519,23 +759,43 @@ async def buy_item_callback_handler(call: CallbackQuery, state: FSMContext):
             (localize("btn.back"), "back_to_item"),
         ]
 
-        await call.message.edit_text(
-            localize(
-                'shop.purchase.receipt',
-                item_name=purchase_data['item_name'],
-                price=purchase_data['price'],
-                unique_id=purchase_data['unique_id'],
-                datetime=purchase_data['bought_datetime'],
-                username=username,
-                user_id=call.from_user.id,
-                value=safe_value,
-                currency=EnvKeys.PAY_CURRENCY,
-            ),
-            parse_mode='HTML',
-            reply_markup=simple_buttons(buttons),
-        )
+        if call.message.text is not None:
+            await call.message.edit_text(
+                localize(
+                    'shop.purchase.receipt',
+                    item_name=purchase_data['item_name'],
+                    price=purchase_data['price'],
+                    unique_id=purchase_data['unique_id'],
+                    datetime=purchase_data['bought_datetime'],
+                    username=username,
+                    user_id=call.from_user.id,
+                    value=safe_value,
+                    currency=EnvKeys.PAY_CURRENCY,
+                ),
+                parse_mode='HTML',
+                reply_markup=simple_buttons(buttons),
+            )
+        else:
+            try:
+                await call.message.delete()
+            except Exception:
+                pass
+            await call.message.answer(
+                localize(
+                    'shop.purchase.receipt',
+                    item_name=purchase_data['item_name'],
+                    price=purchase_data['price'],
+                    unique_id=purchase_data['unique_id'],
+                    datetime=purchase_data['bought_datetime'],
+                    username=username,
+                    user_id=call.from_user.id,
+                    value=safe_value,
+                    currency=EnvKeys.PAY_CURRENCY,
+                ),
+                parse_mode='HTML',
+                reply_markup=simple_buttons(buttons),
+            )
 
-        # Secure logging
         try:
             user_info = await call.bot.get_chat(user_id)
             await log_audit(

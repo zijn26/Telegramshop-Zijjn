@@ -45,6 +45,25 @@ class TestUserCRUD:
         user = await user_factory(telegram_id=1001)
         assert user is not None
         assert user["telegram_id"] == 1001
+        assert user["language"] == "vi"
+
+    async def test_set_user_language_persists_supported_locale(self, user_factory):
+        from bot.database.methods.update import set_user_language
+        from bot.database.methods.read import get_user_language
+
+        await user_factory(telegram_id=12002)
+
+        assert await set_user_language(12002, "en") is True
+        assert await get_user_language(12002) == "en"
+
+    async def test_set_user_language_rejects_unsupported_locale(self, user_factory):
+        from bot.database.methods.update import set_user_language
+        from bot.database.methods.read import get_user_language
+
+        await user_factory(telegram_id=12003)
+
+        assert await set_user_language(12003, "de") is False
+        assert await get_user_language(12003) == "vi"
 
     async def test_create_user_duplicate_ignored(self, user_factory):
         await user_factory(telegram_id=2001)

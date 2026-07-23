@@ -13,7 +13,7 @@ from bot.database.methods import (
     select_user_operations, select_user_items, check_role_name_by_id, check_user_referrals, check_user_cached,
     get_referral_earnings_stats, get_one_referral_earning,
     query_user_bought_items, query_user_referrals, query_referral_earnings_from_user, query_all_referral_earnings,
-    is_user_blocked, admin_balance_change
+    is_user_blocked, admin_balance_change, get_user_language
 )
 from bot.keyboards import back, close, simple_buttons, lazy_paginated_keyboard
 from bot.database.methods.audit import log_audit
@@ -456,12 +456,13 @@ async def process_replenish_user_balance(message: Message, state: FSMContext):
 
         # Notify user
         try:
+            target_locale = await get_user_language(user_id)
             await message.bot.send_message(
                 chat_id=user_id,
-                text=localize('admin.users.balance.topped.notify',
+                text=localize('admin.users.balance.topped.notify', locale=target_locale,
                               amount=int(amount),
                               currency=EnvKeys.PAY_CURRENCY),
-                reply_markup=close()
+                reply_markup=close(locale=target_locale)
             )
         except (TelegramBadRequest, TelegramForbiddenError) as e:
             await log_audit("balance_topup_notify_fail", level="ERROR", user_id=user_id, details=str(e))
@@ -546,12 +547,13 @@ async def process_deduct_user_balance(message: Message, state: FSMContext):
 
         # Notify user
         try:
+            target_locale = await get_user_language(user_id)
             await message.bot.send_message(
                 chat_id=user_id,
-                text=localize('admin.users.balance.deducted.notify',
+                text=localize('admin.users.balance.deducted.notify', locale=target_locale,
                               amount=int(amount),
                               currency=EnvKeys.PAY_CURRENCY),
-                reply_markup=close()
+                reply_markup=close(locale=target_locale)
             )
         except (TelegramBadRequest, TelegramForbiddenError) as e:
             await log_audit("balance_deduct_notify_fail", level="ERROR", user_id=user_id, details=str(e))

@@ -135,10 +135,17 @@ async def buy_item_transaction(telegram_id: int, item_name: str, promo_code: str
                     raise _Abort("out_of_stock")
 
                 delivered_value = item_value.value
+                delivery_type = item_value.delivery_type
+                file_path = item_value.file_path
+                file_name = item_value.file_name
 
-                # 5. If the product is not endless, we remove it
+                # 5. Consume one unit of finite stock. A stock row may represent
+                # several identical deliveries, so delete it only at zero.
                 if not item_value.is_infinity:
-                    await s.delete(item_value)
+                    if item_value.quantity > 1:
+                        item_value.quantity -= 1
+                    else:
+                        await s.delete(item_value)
 
                 # 6. Write off the balance
                 user.balance -= final_price
@@ -146,11 +153,14 @@ async def buy_item_transaction(telegram_id: int, item_name: str, promo_code: str
                 # 7. Create a purchase record
                 bought_item = BoughtGoods(
                     item_name=item_name,
-                    value=delivered_value,
+                    value=delivered_value or "",
                     price=final_price,
                     buyer_id=telegram_id,
                     bought_datetime=datetime.now(timezone.utc),
-                    unique_id=uuid4().int >> 65
+                    unique_id=uuid4().int >> 65,
+                    delivery_type=delivery_type,
+                    file_path=file_path,
+                    file_name=file_name,
                 )
                 s.add(bought_item)
                 await s.flush()
@@ -164,6 +174,10 @@ async def buy_item_transaction(telegram_id: int, item_name: str, promo_code: str
                     "unique_id": bought_item.unique_id,
                     "bought_id": bought_item.id,
                     "bought_datetime": bought_item.bought_datetime.isoformat(),
+                    "delivery_type": delivery_type,
+                    "file_path": file_path,
+                    "file_name": file_name,
+                    "delivery_template": goods.delivery_template,
                 }
                 if discount_info:
                     result_data["discount"] = discount_info
@@ -392,7 +406,12 @@ async def checkout_cart_transaction(
                     )).scalars().first()
 
                     if inf_value:
-                        delivered = [inf_value.value] * qty
+                        deliveries = [{
+                            "value": inf_value.value or "",
+                            "delivery_type": inf_value.delivery_type,
+                            "file_path": inf_value.file_path,
+                            "file_name": inf_value.file_name,
+                        }] * qty
                         values_to_delete = []
                     else:
                         # Claim qty rows. Safe under the goods lock: no other checkout
@@ -411,15 +430,30 @@ async def checkout_cart_transaction(
                             items_to_remove.append(ci.id)
                             continue
 
-                        if len(rows) < qty:
+                        remaining = qty
+                        deliveries = []
+                        values_to_delete = []
+                        for row in rows:
+                            taken = min(row.quantity, remaining)
+                            deliveries.extend([{
+                                "value": row.value or "",
+                                "delivery_type": row.delivery_type,
+                                "file_path": row.file_path,
+                                "file_name": row.file_name,
+                            }] * taken)
+                            remaining -= taken
+                            if row.quantity == taken:
+                                values_to_delete.append(row)
+                            else:
+                                row.quantity -= taken
+                            if remaining == 0:
+                                break
+
+                        if remaining:
                             # Partial stock. Also catches the admin delete path, which
                             # does not take the goods lock: a concurrently removed row
                             # shows up as a short read here rather than a phantom.
                             raise _Abort("out_of_stock")
-
-                        delivered = [r.value for r in rows]
-                        values_to_delete = rows
-
                     # Sale price is the authoritative base; promo stacks on top.
                     price, _on_sale, _original_price = effective_price(goods)
                     line_price = (price * qty).quantize(Decimal("0.01"))
@@ -443,7 +477,7 @@ async def checkout_cart_transaction(
 
                     purchases.append({
                         'goods': goods,
-                        'delivered': delivered,
+                        'deliveries': deliveries,
                         'values_to_delete': values_to_delete,
                         # The line total is authoritative; per-unit prices are derived from it so the BoughtGoods rows sum back to what is charged.
                         'unit_prices': _split_amount(line_price, qty),
@@ -476,24 +510,31 @@ async def checkout_cart_transaction(
                         for v in p['values_to_delete']:
                             await s.delete(v)
 
-                        for value, unit_price in zip(p['delivered'], p['unit_prices']):
+                        for delivery, unit_price in zip(p['deliveries'], p['unit_prices']):
                             bought_item = BoughtGoods(
                                 item_name=p['goods'].name,
-                                value=value,
+                                value=delivery['value'],
                                 price=unit_price,
                                 buyer_id=user_id,
                                 bought_datetime=datetime.now(timezone.utc),
-                                unique_id=uuid4().int >> 65
+                                unique_id=uuid4().int >> 65,
+                                delivery_type=delivery['delivery_type'],
+                                file_path=delivery['file_path'],
+                                file_name=delivery['file_name'],
                             )
                             s.add(bought_item)
                             await s.flush()
                             results.append({
                                 "item_name": p['goods'].name,
-                                "value": value,
+                                "value": delivery['value'],
                                 "price": float(unit_price),
                                 "bought_id": bought_item.id,
                                 "unique_id": bought_item.unique_id,
                                 "bought_datetime": bought_item.bought_datetime.isoformat(),
+                                "delivery_type": delivery['delivery_type'],
+                                "file_path": delivery['file_path'],
+                                "file_name": delivery['file_name'],
+                                "delivery_template": p['goods'].delivery_template,
                             })
 
                     # 6. Record promo usage (once per distinct promo)

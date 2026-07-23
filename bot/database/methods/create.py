@@ -38,6 +38,8 @@ async def create_user(telegram_id: int, registration_date: datetime, referral_id
 
 async def create_item(item_name: str, item_description: str, item_price: int, category_name: str) -> None:
     """Insert item (goods); commit. Resolves category_name to category_id."""
+    item_name = (item_name or "").strip()
+    category_name = (category_name or "").strip()
     async with Database().session() as s:
         result = await s.execute(select(exists().where(Goods.name == item_name)))
         if result.scalar():

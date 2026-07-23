@@ -11,11 +11,11 @@ from bot.database.methods import (
     select_max_role_id, create_user, check_role_cached, check_user,
     select_user_operations, select_user_items, check_user_cached
 )
-from bot.database.methods.read import get_cart_count, invalidate_user_cache
+from bot.database.methods.read import get_cart_count, invalidate_user_cache, get_storefront_descriptions
 from bot.database.methods.lazy_queries import query_user_operations_history
 from bot.handlers.other import check_sub_channel, _parse_channel_username
+from .content_pages import root_content_page_buttons
 from bot.keyboards import main_menu, back, profile_keyboard, check_sub
-from bot.keyboards.inline import simple_buttons, lazy_paginated_keyboard
 from bot.misc import EnvKeys
 from bot.misc.metrics import get_metrics
 from bot.i18n import localize
@@ -88,8 +88,9 @@ async def start(message: Message, state: FSMContext):
         # Ignore channel errors (private channel, wrong link, etc.)
         logger.warning(f"Channel subscription check failed for user {user_id}: {e}")
 
-    markup = main_menu(role=role_data, channel=channel_username, helper=EnvKeys.HELPER_ID)
-    await message.answer(localize("menu.title"), reply_markup=markup)
+    markup = main_menu(role=role_data, channel=channel_username, helper=EnvKeys.HELPER_ID, content_pages=await root_content_page_buttons())
+    menu_description, _ = await get_storefront_descriptions()
+    await message.answer(menu_description, reply_markup=markup, parse_mode="HTML")
     await message.delete()
     await state.clear()
 
@@ -111,11 +112,23 @@ async def back_to_menu_callback_handler(call: CallbackQuery, state: FSMContext):
         user = await check_user_cached(user_id)
 
     role_id = user.get('role_id')
-
     channel_username = _parse_channel_username()
 
-    markup = main_menu(role=role_id, channel=channel_username, helper=EnvKeys.HELPER_ID)
-    await call.message.edit_text(localize("menu.title"), reply_markup=markup)
+    markup = main_menu(role=role_id, channel=channel_username, helper=EnvKeys.HELPER_ID, content_pages=await root_content_page_buttons())
+    menu_description, _ = await get_storefront_descriptions()
+
+    if call.message.text is not None:
+        try:
+            await call.message.edit_text(menu_description, reply_markup=markup, parse_mode="HTML")
+        except TelegramBadRequest as e:
+            if "message is not modified" not in str(e):
+                raise
+    else:
+        try:
+            await call.message.delete()
+        except Exception:
+            pass
+        await call.message.answer(menu_description, reply_markup=markup, parse_mode="HTML")
     await state.clear()
 
 
@@ -126,7 +139,14 @@ async def rules_callback_handler(call: CallbackQuery, state: FSMContext):
     """
     rules_data = EnvKeys.RULES
     if rules_data:
-        await call.message.edit_text(rules_data, reply_markup=back("back_to_menu"))
+        if call.message.text is not None:
+            await call.message.edit_text(rules_data, reply_markup=back("back_to_menu"))
+        else:
+            try:
+                await call.message.delete()
+            except Exception:
+                pass
+            await call.message.answer(rules_data, reply_markup=back("back_to_menu"))
     else:
         await call.answer(localize("rules.not_set"))
     await state.clear()
@@ -156,11 +176,19 @@ async def profile_callback_handler(call: CallbackQuery, state: FSMContext):
         f"{localize('profile.total_topup', amount=overall_balance, currency=EnvKeys.PAY_CURRENCY)}\n"
         f"{localize('profile.purchased_count', count=items)}"
     )
-    try:
-        await call.message.edit_text(text, reply_markup=markup, parse_mode='HTML')
-    except TelegramBadRequest as e:
-        if "message is not modified" not in str(e):
-            raise
+
+    if call.message.text is not None:
+        try:
+            await call.message.edit_text(text, reply_markup=markup, parse_mode='HTML')
+        except TelegramBadRequest as e:
+            if "message is not modified" not in str(e):
+                raise
+    else:
+        try:
+            await call.message.delete()
+        except Exception:
+            pass
+        await call.message.answer(text, reply_markup=markup, parse_mode='HTML')
     await state.clear()
 
 
@@ -179,8 +207,13 @@ async def check_sub_to_channel(call: CallbackQuery, state: FSMContext):
         if await check_sub_channel(chat_member):
             user = await check_user_cached(user_id)
             role_id = user.get('role_id')
-            markup = main_menu(role_id, channel_username, helper)
-            await call.message.edit_text(localize("menu.title"), reply_markup=markup)
+            markup = main_menu(role_id, channel_username, helper, await root_content_page_buttons())
+            menu_description, _ = await get_storefront_descriptions()
+            if call.message.text is not None:
+                await call.message.edit_text(menu_description, reply_markup=markup, parse_mode="HTML")
+            else:
+                await call.message.delete()
+                await call.message.answer(menu_description, reply_markup=markup, parse_mode="HTML")
             await state.clear()
             return
 
@@ -214,10 +247,15 @@ async def _show_operations_page(call: CallbackQuery, state: FSMContext, user_id:
     total_pages = await paginator.get_total_pages()
 
     if not items:
-        await call.message.edit_text(
-            localize("history.title") + "\n\n" + localize("history.empty"),
-            reply_markup=back("profile"),
-        )
+        text = localize("history.title") + "\n\n" + localize("history.empty")
+        if call.message.text is not None:
+            await call.message.edit_text(text, reply_markup=back("profile"))
+        else:
+            try:
+                await call.message.delete()
+            except Exception:
+                pass
+            await call.message.answer(text, reply_markup=back("profile"))
         return
 
     lines = [localize("history.title"), ""]
@@ -250,6 +288,12 @@ async def _show_operations_page(call: CallbackQuery, state: FSMContext, user_id:
         kb.row(*nav_buttons)
     kb.row(InlineKeyboardButton(text=localize("btn.back"), callback_data="profile"))
 
-    await call.message.edit_text("\n".join(lines), reply_markup=kb.as_markup())
-
-
+    res_text = "\n".join(lines)
+    if call.message.text is not None:
+        await call.message.edit_text(res_text, reply_markup=kb.as_markup())
+    else:
+        try:
+            await call.message.delete()
+        except Exception:
+            pass
+        await call.message.answer(res_text, reply_markup=kb.as_markup())

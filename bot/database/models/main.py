@@ -6,7 +6,7 @@ from sqlalchemy import (
     Integer, String, BigInteger, ForeignKey, Text, Boolean,
     DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, func, select
 )
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.orm import relationship, Mapped, mapped_column, column_property
 from bot.database.main import Database
 
 
@@ -95,6 +95,7 @@ class Role(Database.BASE):
 class User(Database.BASE):
     __tablename__ = 'users'
     telegram_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    language: Mapped[str] = mapped_column(String(5), nullable=False, default="vi", server_default="vi")
     role_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey('roles.id', ondelete="RESTRICT"), default=1, index=True)
     balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
@@ -151,6 +152,8 @@ class Goods(Database.BASE):
         Integer, ForeignKey('categories.id', ondelete="CASCADE"), nullable=False, index=True)
     sale_percent: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     sale_until: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivery_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    restock_notification_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     category: Mapped["Categories"] = relationship("Categories", back_populates="items", lazy='raise')
     values: Mapped[list["ItemValues"]] = relationship(
         "ItemValues", back_populates="item", lazy='raise', passive_deletes=True)
@@ -164,12 +167,20 @@ class ItemValues(Database.BASE):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     item_id: Mapped[int] = mapped_column(
         Integer, ForeignKey('goods.id', ondelete="CASCADE"), nullable=False, index=True)
+    product_name: Mapped[str] = column_property(
+        select(Goods.name).where(Goods.id == item_id).correlate_except(Goods).scalar_subquery()
+    )
     value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_infinity: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    delivery_type: Mapped[str] = mapped_column(String(12), nullable=False, default="text", server_default="text")
+    file_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     item: Mapped["Goods"] = relationship("Goods", back_populates="values", lazy='raise')
 
     __table_args__ = (
         UniqueConstraint('item_id', 'value', name='uq_item_value_per_item'),
+        CheckConstraint('quantity > 0', name='ck_item_values_quantity_positive'),
         Index('ix_item_values_item_inf', 'item_id', 'is_infinity'),
     )
 
@@ -188,6 +199,9 @@ class BoughtGoods(Database.BASE):
     bought_datetime: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())
     unique_id: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
+    delivery_type: Mapped[str] = mapped_column(String(12), nullable=False, default="text", server_default="text")
+    file_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     user_telegram_id: Mapped[Optional["User"]] = relationship(
         "User", back_populates="user_goods", lazy='raise')
 
@@ -367,6 +381,9 @@ class CartItems(Database.BASE):
         BigInteger, ForeignKey('users.telegram_id', ondelete='CASCADE'), nullable=False, index=True)
     item_id: Mapped[int] = mapped_column(
         Integer, ForeignKey('goods.id', ondelete='CASCADE'), nullable=False, index=True)
+    product_name: Mapped[str] = column_property(
+        select(Goods.name).where(Goods.id == item_id).correlate_except(Goods).scalar_subquery()
+    )
     promo_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     added_at: Mapped[datetime.datetime] = mapped_column(
@@ -415,6 +432,30 @@ class StockSubscriptions(Database.BASE):
 
     def __str__(self):
         return f"sub u={self.user_id} item={self.item_id}"
+
+
+class ContentPage(Database.BASE):
+    """Administrator-authored Telegram content page and its menu placement."""
+    __tablename__ = "content_pages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    button_text: Mapped[str] = mapped_column(String(64), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    parent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("content_pages.id", ondelete="CASCADE"), nullable=True, index=True)
+    media: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    media_type: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    __table_args__ = (CheckConstraint("media_type IS NULL OR media_type IN ('photo', 'animation', 'video')", name="ck_content_pages_media_type"),)
+    def __str__(self): return self.button_text
+
+
+class StorefrontSettings(Database.BASE):
+    """Administrator-authored text displayed in the storefront entry screens."""
+    __tablename__ = "storefront_settings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    main_menu_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    shop_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
 async def register_models():

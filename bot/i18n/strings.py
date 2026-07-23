@@ -20,9 +20,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.check_subscription": "🔄 Проверить подписку",
         "btn.pay": "💳 Оплатить",
         "btn.check_payment": "🔄 Проверить оплату",
+        "btn.pay.payos": "💳 VietQR (PayOS)",
         "btn.pay.crypto": "💎 CryptoPay",
         "btn.pay.stars": "⭐ Telegram Stars",
         "btn.pay.tg": "💸 Telegram Payments",
+        "payments.payos.api_error": "❌ Ошибка PayOS API: {error}",
+        "payments.payos.create_fail": "❌ Не удалось выставить счёт PayOS: {error}",
 
         # === Admin Buttons (user management shortcuts) ===
         "btn.admin.view_profile": "👁 Посмотреть профиль",
@@ -550,9 +553,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.check_subscription": "🔄 Check subscription",
         "btn.check_payment": "🔄 Check payment",
         "btn.pay": "💳 Pay",
+        "btn.pay.payos": "💳 VietQR (PayOS)",
         "btn.pay.crypto": "💎 CryptoPay",
         "btn.pay.stars": "⭐ Telegram Stars",
         "btn.pay.tg": "💸 Telegram Payments",
+        "payments.payos.api_error": "❌ PayOS API Error: {error}",
+        "payments.payos.create_fail": "❌ Failed to create PayOS invoice: {error}",
 
         # === Admin Buttons (user management shortcuts) ===
         "btn.admin.view_profile": "👁 View profile",

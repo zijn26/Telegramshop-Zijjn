@@ -143,7 +143,7 @@ async def updating_item_amount(call: CallbackQuery, state):
     await call.message.edit_text("\n".join(text_lines), parse_mode="HTML", reply_markup=back('goods_management'))
 
     if added:
-        await _notify_restock_safe(call.bot, item_name)
+        await _notify_restock_safe(call.bot, item_name, added_quantity=added)
 
     # Optional: channel notification (if configured)
     channel_username = _parse_channel_username()
@@ -406,7 +406,7 @@ async def update_item_no_infinity(call: CallbackQuery, state):
         text_lines.append(localize('admin.goods.add.result.skipped_invalid', n=skipped_invalid))
 
     if added:
-        await _notify_restock_safe(call.bot, item_new_name)
+        await _notify_restock_safe(call.bot, item_new_name, added_quantity=added)
 
     # Optional: channel notification (if configured)
     channel_username = _parse_channel_username()
