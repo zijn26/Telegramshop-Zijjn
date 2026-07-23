@@ -81,6 +81,7 @@ from bot.database.models.main import (
     User, Role, Categories, Goods, ItemValues,
     BoughtGoods, Operations, Payments, ReferralEarnings,
     AuditLog, PromoCodes, CartItems, Reviews, promo_scope_for,
+    ContentPage, StorefrontSettings,
 )
 from bot.misc.metrics import get_metrics
 from bot.misc.caching import get_cache_manager
@@ -329,6 +330,7 @@ class ItemValuesAdmin(AuditModelView, model=ItemValues):
     column_list = [ItemValues.id, ItemValues.item_id, ItemValues.value, ItemValues.is_infinity]
     column_searchable_list = [ItemValues.value]
     column_sortable_list = [ItemValues.id, ItemValues.item_id]
+    form_excluded_columns = [ItemValues.item, ItemValues.product_name]
     name = "Stock Item"
     name_plural = "Stock Items"
     icon = "fa-solid fa-warehouse"
@@ -577,6 +579,7 @@ class CartItemsAdmin(ModelView, model=CartItems):
     column_searchable_list = [CartItems.user_id, CartItems.item_id]
     column_sortable_list = [CartItems.id, CartItems.added_at]
     column_default_sort = (CartItems.id, True)
+    form_excluded_columns = [CartItems.product_name]
     can_create = False
     can_edit = False
     can_delete = False
@@ -595,6 +598,82 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
     name = "Review"
     name_plural = "Reviews"
     icon = "fa-solid fa-star"
+
+
+class ContentPageAdmin(AuditModelView, model=ContentPage):
+    column_list = [ContentPage.id, ContentPage.button_text, ContentPage.parent_id,
+                   ContentPage.is_active, ContentPage.sort_order, ContentPage.created_at]
+    column_searchable_list = [ContentPage.button_text, ContentPage.content]
+    column_sortable_list = [ContentPage.id, ContentPage.sort_order, ContentPage.created_at]
+    column_default_sort = (ContentPage.sort_order, False)
+    form_columns = [ContentPage.button_text, ContentPage.content, ContentPage.parent_id,
+                    ContentPage.media, ContentPage.media_type, ContentPage.is_active, ContentPage.sort_order]
+    name = "Content Page"
+    name_plural = "Content Pages"
+    icon = "fa-solid fa-file-lines"
+
+    async def scaffold_form(self, *args, **kwargs):
+        Form = await super().scaffold_form(*args, **kwargs)
+
+        async with self.session_maker() as s:
+            pages = (await s.execute(
+                sa_select(ContentPage.id, ContentPage.button_text).order_by(ContentPage.button_text)
+            )).all()
+
+        none_label = "Main menu (no parent)"
+        parent_choices = [("", none_label)] + [(str(pid), btext) for pid, btext in pages]
+
+        media_choices = [
+            ("", "Text only (no media)"),
+            ("photo", "Photo"),
+            ("animation", "GIF animation"),
+            ("video", "Video"),
+        ]
+
+        def _coerce_int(v):
+            return int(v) if v not in (None, "", "None") else None
+
+        def _coerce_str(v):
+            return str(v).strip() if v not in (None, "", "None") else None
+
+        class ContentPageFormWithParents(Form):
+            parent_id = SelectField(
+                "Parent Page", choices=parent_choices, coerce=_coerce_int,
+                validators=[WtfOptional()],
+                description="Nested sub-menu placement. Leave empty for root menu.",
+            )
+            media_type = SelectField(
+                "Media Type", choices=media_choices, coerce=_coerce_str,
+                validators=[WtfOptional()],
+                description="Optional Telegram media type.",
+            )
+
+        return ContentPageFormWithParents
+
+    async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
+        def _as_id(v):
+            if v in (None, "", "None"):
+                return None
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                return None
+
+        def _as_str(v):
+            if v in (None, "", "None"):
+                return None
+            return str(v).strip() or None
+
+        data["parent_id"] = _as_id(data.get("parent_id"))
+        data["media_type"] = _as_str(data.get("media_type"))
+        data["media"] = _as_str(data.get("media"))
+
+
+class StorefrontSettingsAdmin(AuditModelView, model=StorefrontSettings):
+    column_list = [StorefrontSettings.id, StorefrontSettings.main_menu_description, StorefrontSettings.shop_description]
+    name = "Storefront Text"
+    name_plural = "Storefront Texts"
+    icon = "fa-solid fa-store"
 
 
 # Health & Metrics Endpoints
@@ -694,6 +773,8 @@ def create_admin_app(bot: Any = None) -> Starlette:
     admin.add_view(AuditLogAdmin)
     admin.add_view(PromoCodeAdmin)
     admin.add_view(CartItemsAdmin)
+    admin.add_view(ContentPageAdmin)
+    admin.add_view(StorefrontSettingsAdmin)
     if EnvKeys.REVIEWS_ENABLED == "1":
         admin.add_view(ReviewsAdmin)
 
