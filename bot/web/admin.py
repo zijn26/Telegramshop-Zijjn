@@ -157,6 +157,10 @@ def set_notifier_bot(bot: Any) -> None:
     _notifier_bot = bot
 
 
+def get_notifier_bot() -> Any:
+    return _notifier_bot
+
+
 # Audited base view for mutable models
 class AuditModelView(ModelView):
     async def after_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
@@ -740,6 +744,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
     from bot.web.export import export_routes
     from bot.web.content_manager import content_manager_routes
     from bot.web.gacha_manager import gacha_manager_routes
+    from bot.web.media_manager import media_manager_routes
 
     async def root_redirect(request: Request) -> RedirectResponse:
         return RedirectResponse(url="/admin")
@@ -749,7 +754,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
         Route("/health", health_check),
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
-    ] + export_routes + content_manager_routes + gacha_manager_routes
+    ] + export_routes + content_manager_routes + gacha_manager_routes + media_manager_routes
 
     app = Starlette(routes=routes)
     app.add_middleware(SessionMiddleware, secret_key=EnvKeys.SECRET_KEY, max_age=1800)

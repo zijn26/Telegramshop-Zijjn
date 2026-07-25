@@ -71,11 +71,19 @@ class CleanupManager:
                     )
                     payments_deleted = payments_result.rowcount
 
+                from bot.web.admin import get_notifier_bot
+                from bot.database.methods.media import verify_and_clean_stale_media
+
+                bot = get_notifier_bot()
+                media_checked, media_deleted = 0, 0
+                if bot:
+                    media_checked, media_deleted = await verify_and_clean_stale_media(bot)
+
                 await log_audit(
                     "daily_cleanup",
-                    details=f"audit_deleted={audit_deleted}, payments_deleted={payments_deleted}"
+                    details=f"audit_deleted={audit_deleted}, payments_deleted={payments_deleted}, media_checked={media_checked}, media_deleted={media_deleted}"
                 )
-                logger.info(f"Daily cleanup: audit={audit_deleted}, payments={payments_deleted}")
+                logger.info(f"Daily cleanup: audit={audit_deleted}, payments={payments_deleted}, media_cleaned={media_deleted}/{media_checked}")
 
             except Exception as e:
                 logger.error(f"Daily cleanup failed: {e}", exc_info=True)
