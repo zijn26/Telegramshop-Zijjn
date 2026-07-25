@@ -165,3 +165,49 @@ async def is_user_allowed_to_capture_media(user_id: Optional[int]) -> bool:
             return user_id in allowed_list or str(user_id) in [str(u) for u in allowed_list]
 
     return True
+
+
+import random
+
+
+async def get_roll_media_item(category: str, index: int) -> Tuple[Optional[MediaVault], int]:
+    """
+    Fetch a single MediaVault item by sequential 0-based index for roll_media (video vs photo/emoji).
+    Returns (item, total_count).
+    """
+    async with Database().session() as session:
+        query = select(MediaVault)
+        if category == "video":
+            query = query.where(MediaVault.media_type == "video")
+        else:
+            query = query.where(MediaVault.media_type.in_(["photo", "emoji", "sticker", "animation"]))
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total_count = (await session.scalar(count_query)) or 0
+
+        if total_count == 0:
+            return None, 0
+
+        if index < 0 or index >= total_count:
+            return None, total_count
+
+        item = (await session.scalars(
+            query.order_by(MediaVault.id.asc()).offset(index).limit(1)
+        )).first()
+
+        return item, total_count
+
+
+async def get_random_roll_media_index(category: str) -> int:
+    """Return a random valid index 0 <= idx < total_count for given category."""
+    async with Database().session() as session:
+        query = select(func.count()).select_from(MediaVault)
+        if category == "video":
+            query = query.where(MediaVault.media_type == "video")
+        else:
+            query = query.where(MediaVault.media_type.in_(["photo", "emoji", "sticker", "animation"]))
+
+        total_count = (await session.scalar(query)) or 0
+        if total_count <= 1:
+            return 0
+        return random.randint(0, total_count - 1)

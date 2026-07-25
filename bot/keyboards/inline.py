@@ -43,8 +43,38 @@ def entertainment_keyboard() -> InlineKeyboardMarkup:
     """
     kb = InlineKeyboardBuilder()
     kb.button(text="🎰 Vòng quay Gacha", callback_data="gacha_main")
+    kb.button(text="🌸 Ngắm xinh", callback_data="ngam_xinh_main")
     kb.button(text=localize("btn.back"), callback_data="back_to_menu")
     kb.adjust(1)
+    return kb.as_markup()
+
+
+def ngam_xinh_menu_keyboard() -> InlineKeyboardMarkup:
+    """
+    Sub-menu keyboard for Ngắm xinh section.
+    """
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🎬 Ngắm Video", callback_data="roll_media:video:0")
+    kb.button(text="🖼️ Ngắm Ảnh & Emoji", callback_data="roll_media:photo:0")
+    kb.button(text=localize("btn.back"), callback_data="entertainment")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def roll_media_keyboard(category: str, current_index: int, total_count: int) -> InlineKeyboardMarkup:
+    """
+    Controls under media viewer (Nữa đi fen, Cái trước đi, Random, Quay lại).
+    """
+    kb = InlineKeyboardBuilder()
+    prev_idx = current_index - 1
+    next_idx = current_index + 1
+
+    kb.row(
+        InlineKeyboardButton(text="◀️ Cái trước đi", callback_data=f"roll_media:{category}:{prev_idx}"),
+        InlineKeyboardButton(text="🎲 Random", callback_data=f"roll_media_rand:{category}"),
+        InlineKeyboardButton(text="▶️ Nữa đi fen", callback_data=f"roll_media:{category}:{next_idx}"),
+    )
+    kb.row(InlineKeyboardButton(text="🔙 Quay lại", callback_data="ngam_xinh_main"))
     return kb.as_markup()
 
 
