@@ -7,6 +7,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from bot.database.main import Database
+from bot.database.models.main import Goods
 
 
 class GachaSettings(Database.BASE):
@@ -18,6 +19,7 @@ class GachaSettings(Database.BASE):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     title: Mapped[str] = mapped_column(String(255), default="🎰 Vòng Quay Gacha May Mắn", nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    selected_item_ids: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON list string e.g. "[1, 2, 3]"
 
 
 class GachaItem(Database.BASE):
@@ -29,13 +31,15 @@ class GachaItem(Database.BASE):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     item_type: Mapped[str] = mapped_column(
         String(50), default="text_gift", nullable=False
-    )  # text_gift, balance_reward, promo_code, no_prize
+    )  # balance_reward, promo_code, goods_item, text_gift, no_prize
+    goods_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("goods.id", ondelete="SET NULL"), nullable=True)
     reward_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     drop_rate: Mapped[float] = mapped_column(Numeric(6, 2), default=10.0, nullable=False)  # Weight / Probability %
     stock_quantity: Mapped[int] = mapped_column(Integer, default=-1, nullable=False)  # -1 = unlimited
     image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    goods: Mapped[Optional["Goods"]] = relationship("Goods", lazy="selectin")
     wins: Mapped[list["GachaUserWin"]] = relationship("GachaUserWin", back_populates="item", cascade="all, delete-orphan")
 
     def __str__(self):

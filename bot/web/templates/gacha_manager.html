@@ -6,7 +6,7 @@
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
       <div>
         <h2 class="mb-1 fw-bold text-white"><i class="fa fa-gamepad me-2"></i>Quản lý Vòng quay Gacha May Mắn</h2>
-        <p class="mb-0 text-white-50 fs-6">Tùy chỉnh giá mỗi lượt quay, thiết lập danh sách vật phẩm quà tặng & tỷ lệ trúng gacha cho bot Telegram.</p>
+        <p class="mb-0 text-white-50 fs-6">Tùy chỉnh giá quay, chọn danh sách các phần thưởng tham gia vòng quay & thiết lập logic phát thưởng thực tế.</p>
       </div>
       <div>
         <button type="button" class="btn btn-light text-danger fw-bold shadow-sm" onclick="openCreateItemModal()">
@@ -21,7 +21,7 @@
     <div class="col-lg-5">
       <div class="card border-0 shadow-sm h-100" style="border-radius: 14px; border: 1px solid #e2e8f0;">
         <div class="card-header bg-danger text-white fw-bold py-3 px-4" style="border-top-left-radius: 14px; border-top-right-radius: 14px;">
-          <i class="fa fa-cog me-2"></i>Cấu hình Vòng quay Gacha
+          <i class="fa fa-cog me-2"></i>Cấu hình & Chọn Phần thưởng Vòng quay
         </div>
         <div class="card-body p-4">
           <form method="POST" action="/admin/gacha-manager/save-settings">
@@ -41,7 +41,45 @@
 
             <div class="mb-3">
               <label class="form-label fw-bold" for="set_description">Mô tả header banner Gacha</label>
-              <textarea class="form-control" name="description" id="set_description" rows="3" placeholder="Nhập lời chào hoặc thể lệ quay... (để trống sẽ dùng mặc định)">{{ settings.description or '' }}</textarea>
+              <textarea class="form-control" name="description" id="set_description" rows="2" placeholder="Nhập lời chào hoặc thể lệ quay... (để trống sẽ dùng mặc định)">{{ settings.description or '' }}</textarea>
+            </div>
+
+            <!-- Active Items Pool Interactive Selector -->
+            <div class="mb-3 p-3 bg-light rounded border" style="border-radius: 12px;">
+              <label class="form-label fw-bold text-dark mb-1">
+                <i class="fa fa-list-ol text-danger me-1"></i>Danh sách Phần thưởng trong Vòng quay:
+              </label>
+              <small class="text-muted d-block mb-2">Chọn phần thưởng từ danh sách thả xuống và bấm <b>"Thêm vào Vòng quay"</b>:</small>
+
+              <!-- Add Item Picker Controls -->
+              <div class="input-group mb-2">
+                <select class="form-select font-weight-bold" id="item_picker_select">
+                  <option value="">-- Chọn Phần thưởng để thêm --</option>
+                  {% for item in items %}
+                  <option value="{{ item.id }}">🎁 {{ item.name }} (Tỷ lệ: {{ item.drop_rate }}%)</option>
+                  {% endfor %}
+                </select>
+                <button type="button" class="btn btn-outline-danger fw-bold" onclick="addSelectedPickerItem()">
+                  <i class="fa fa-plus me-1"></i> Thêm
+                </button>
+              </div>
+
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-secondary">Đã chọn (<span id="active_pool_count">0</span> phần thưởng):</span>
+                <div>
+                  <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-primary me-2" onclick="selectAllPickerItems()">Tích tất cả</button>
+                  <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-danger" onclick="clearAllPickerItems()">Xóa tất cả</button>
+                </div>
+              </div>
+
+              <!-- Visual Chips Container -->
+              <div id="active_pool_chips" class="d-flex flex-wrap gap-2 p-2 bg-white rounded border" style="min-height: 80px; max-height: 180px; overflow-y: auto;">
+                <!-- Rendered dynamically by JS -->
+              </div>
+              
+              <div id="hidden_selected_inputs">
+                <!-- Hidden inputs submitted with form -->
+              </div>
             </div>
 
             <div class="mb-4">
@@ -49,10 +87,9 @@
                 <input class="form-check-input" type="checkbox" name="is_active" id="set_is_active" value="1" {% if settings.is_active %}checked{% endif %}>
                 <label class="form-check-label fw-bold ms-2" for="set_is_active">Kích hoạt tính năng Gacha trong Bot</label>
               </div>
-              <small class="text-muted">Tắt đi nếu muốn tạm dừng vòng quay gacha bảo trì.</small>
             </div>
 
-            <button type="submit" class="btn btn-danger w-100 fw-bold py-2"><i class="fa fa-save me-1"></i> Lưu cấu hình Gacha</button>
+            <button type="submit" class="btn btn-danger w-100 fw-bold py-2"><i class="fa fa-save me-1"></i> Lưu cấu hình & Vòng quay Gacha</button>
           </form>
         </div>
       </div>
@@ -62,7 +99,7 @@
     <div class="col-lg-7">
       <div class="card border-0 shadow-sm h-100" style="border-radius: 14px; border: 1px solid #e2e8f0;">
         <div class="card-header bg-dark text-white fw-bold py-3 px-4" style="border-top-left-radius: 14px; border-top-right-radius: 14px;">
-          <i class="fa fa-pie-chart me-2"></i>Tổng quan Kho Quà Gacha ({{ items | length }} vật phẩm)
+          <i class="fa fa-pie-chart me-2"></i>Danh sách Tất cả Phần thưởng Gacha ({{ items | length }})
         </div>
         <div class="card-body p-4">
           <div class="table-responsive">
@@ -72,8 +109,7 @@
                   <th>Vật phẩm</th>
                   <th>Loại quà</th>
                   <th>Tỷ lệ (%)</th>
-                  <th>Kho còn</th>
-                  <th>Trạng thái</th>
+                  <th>Kho quà</th>
                   <th class="text-end">Hành động</th>
                 </tr>
               </thead>
@@ -82,13 +118,17 @@
                 <tr>
                   <td>
                     <span class="fw-bold text-dark">{{ item.name }}</span>
-                    {% if item.reward_value %}
+                    {% if item.goods %}
+                    <br><small class="text-primary font-monospace">📦 SP: {{ item.goods.name }}</small>
+                    {% elif item.reward_value %}
                     <br><small class="text-muted font-monospace">Giá trị: {{ item.reward_value }}</small>
                     {% endif %}
                   </td>
                   <td>
                     {% if item.item_type == 'balance_reward' %}
                       <span class="badge bg-success-subtle text-success border border-success-subtle">💰 Cộng số dư</span>
+                    {% elif item.item_type == 'goods_item' %}
+                      <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">📦 Sản phẩm kho</span>
                     {% elif item.item_type == 'promo_code' %}
                       <span class="badge bg-primary-subtle text-primary border border-primary-subtle">🎟️ Mã giảm giá</span>
                     {% elif item.item_type == 'text_gift' %}
@@ -104,14 +144,7 @@
                     {% elif item.stock_quantity > 0 %}
                       <span class="badge bg-success-subtle text-success border">{{ item.stock_quantity }}</span>
                     {% else %}
-                      <span class="badge bg-danger-subtle text-danger border">Hết quà</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if item.is_active %}
-                      <span class="badge bg-success">Bật</span>
-                    {% else %}
-                      <span class="badge bg-secondary">Tắt</span>
+                      <span class="badge bg-danger-subtle text-danger border">Hết kho</span>
                     {% endif %}
                   </td>
                   <td class="text-end">
@@ -124,7 +157,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="6" class="text-center py-4 text-muted">Chưa có vật phẩm Gacha nào trong kho pool! Hãy bấm nút "Thêm vật phẩm Gacha mới".</td>
+                  <td colspan="5" class="text-center py-4 text-muted">Chưa có phần thưởng nào trong kho. Hãy bấm nút "Thêm vật phẩm Gacha mới".</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -137,8 +170,11 @@
 
   <!-- Recent Wins History Section -->
   <div class="card border-0 shadow-sm" style="border-radius: 14px; border: 1px solid #e2e8f0;">
-    <div class="card-header bg-warning text-dark fw-bold py-3 px-4" style="border-top-left-radius: 14px; border-top-right-radius: 14px;">
-      <i class="fa fa-history me-2"></i>Lịch sử Người dùng Quay Trúng Gacha (30 lượt gần nhất)
+    <div class="card-header bg-warning text-dark fw-bold py-3 px-4 d-flex justify-content-between align-items-center" style="border-top-left-radius: 14px; border-top-right-radius: 14px;">
+      <div>
+        <i class="fa fa-history me-2"></i>Lịch sử Người dùng Quay Trúng Gacha (Tổng: {{ total_wins }} lượt)
+      </div>
+      <span class="badge bg-dark text-white">Trang {{ page }} / {{ total_pages }}</span>
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
@@ -148,7 +184,7 @@
               <th class="ps-4">ID Giao dịch</th>
               <th>User ID</th>
               <th>Vật phẩm trúng</th>
-              <th>Chi tiết phần thưởng</th>
+              <th>Chi tiết phần thưởng thực tế</th>
               <th class="pe-4 text-end">Thời gian</th>
             </tr>
           </thead>
@@ -170,6 +206,27 @@
         </table>
       </div>
     </div>
+    <!-- Pagination Footer (10 items per page) -->
+    {% if total_pages > 1 %}
+    <div class="card-footer bg-light d-flex justify-content-between align-items-center px-4 py-3" style="border-bottom-left-radius: 14px; border-bottom-right-radius: 14px;">
+      <small class="text-muted">Hiển thị {{ (page - 1) * per_page + 1 }} - {{ [page * per_page, total_wins] | min }} trên {{ total_wins }} lượt quay</small>
+      <nav aria-label="Win history pagination">
+        <ul class="pagination pagination-sm mb-0">
+          <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+            <a class="page-link" href="/admin/gacha-manager?page={{ page - 1 }}">&laquo; Trang trước</a>
+          </li>
+          {% for p in range(1, total_pages + 1) %}
+          <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="/admin/gacha-manager?page={{ p }}">{{ p }}</a>
+          </li>
+          {% endfor %}
+          <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+            <a class="page-link" href="/admin/gacha-manager?page={{ page + 1 }}">Trang sau &raquo;</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
   </div>
 </div>
 
@@ -192,25 +249,37 @@
             </div>
             <div class="col-md-5">
               <label class="form-label fw-bold" for="modal_item_type">Loại phần thưởng</label>
-              <select class="form-select" name="item_type" id="modal_item_type">
-                <option value="balance_reward">💰 Cộng số dư tài khoản</option>
-                <option value="promo_code">🎟️ Tặng Mã Giảm Giá</option>
-                <option value="text_gift">🎁 Quà văn bản / Giftcode</option>
+              <select class="form-select" name="item_type" id="modal_item_type" onchange="toggleRewardInputs()">
+                <option value="balance_reward">💰 Cộng số dư tài khoản (Admin chỉnh số tiền)</option>
+                <option value="promo_code">🎟️ Tạo Mã Giảm Giá dùng 1 lần (Admin chỉnh % giảm giá)</option>
+                <option value="goods_item">📦 Sản phẩm Cửa hàng (Admin chọn sản phẩm thực tế)</option>
                 <option value="no_prize">😅 Chúc may mắn lần sau (Không trúng)</option>
               </select>
             </div>
           </div>
 
+          <!-- Dynamic Input for Goods Item Selection -->
+          <div class="mb-3" id="goods_select_div" style="display: none;">
+            <label class="form-label fw-bold" for="modal_goods_id">Chọn Sản phẩm KTS thực tế trong Cửa hàng</label>
+            <select class="form-select" name="goods_id" id="modal_goods_id">
+              <option value="">-- Chọn Sản phẩm --</option>
+              {% for g in all_goods %}
+              <option value="{{ g.id }}">{{ g.name }} (Giá gốc: {{ "{:,.0f}".format(g.price) }} VND)</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Khi người dùng trúng, hệ thống sẽ tự động trừ 1 tài khoản/file trong kho của sản phẩm này và gửi cho người dùng.</small>
+          </div>
+
           <div class="row g-3 mb-3">
-            <div class="col-md-6">
-              <label class="form-label fw-bold" for="modal_reward_value">Giá trị thưởng (Reward Value)</label>
-              <input type="text" class="form-control" name="reward_value" id="modal_reward_value" placeholder="VD: 50000 (nếu là cộng tiền) hoặc PROMO50 (nếu là mã)">
-              <small class="text-muted">Nếu là cộng tiền: Nhập số tiền (VD: 50000). Nếu là mã: Nhập mã giảm giá/Giftcode.</small>
+            <div class="col-md-6" id="reward_value_div">
+              <label class="form-label fw-bold" for="modal_reward_value" id="reward_value_label">Giá trị thưởng (Reward Value)</label>
+              <input type="text" class="form-control" name="reward_value" id="modal_reward_value" placeholder="VD: 50000 (Nếu cộng tiền) hoặc 20 (Nếu là % giảm giá)">
+              <small class="text-muted" id="reward_value_help">Số tiền VND nếu là cộng số dư, hoặc phần trăm % nếu là Mã giảm giá.</small>
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold" for="modal_drop_rate">Tỷ lệ trúng (%) <span class="text-danger">*</span></label>
               <input type="number" class="form-control" name="drop_rate" id="modal_drop_rate" value="10.0" min="0.01" max="100" step="0.01" required>
-              <small class="text-muted">Trọng số phần trăm.</small>
+              <small class="text-muted">Trọng số %.</small>
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold" for="modal_stock_quantity">Số lượng kho</label>
@@ -221,7 +290,7 @@
 
           <div class="mb-3">
             <label class="form-label fw-bold" for="modal_description">Mô tả phần thưởng</label>
-            <textarea class="form-control" name="description" id="modal_description" rows="3" placeholder="Mô tả chi tiết hoặc hướng dẫn nhận quà..."></textarea>
+            <textarea class="form-control" name="description" id="modal_description" rows="2" placeholder="Mô tả chi tiết hoặc hướng dẫn nhận quà..."></textarea>
           </div>
 
           <div class="row g-3 align-items-center">
@@ -249,18 +318,118 @@
 
 <script>
 const itemsData = {{ items_data | tojson | safe }};
+let currentSelectedIds = {{ selected_ids_list | tojson | safe }};
+
+// Default select all items if selected_ids_list is empty
+if (!currentSelectedIds || currentSelectedIds.length === 0) {
+  currentSelectedIds = itemsData.map(i => i.id);
+}
+
+function renderActivePoolChips() {
+  const container = document.getElementById('active_pool_chips');
+  const hiddenContainer = document.getElementById('hidden_selected_inputs');
+  const countSpan = document.getElementById('active_pool_count');
+
+  container.innerHTML = '';
+  hiddenContainer.innerHTML = '';
+  countSpan.innerText = currentSelectedIds.length;
+
+  if (currentSelectedIds.length === 0) {
+    container.innerHTML = '<span class="text-muted small fst-italic p-2">Chưa có phần thưởng nào được chọn cho Vòng quay. (Bot sẽ báo chưa có phần thưởng!)</span>';
+    return;
+  }
+
+  currentSelectedIds.forEach(id => {
+    const item = itemsData.find(i => i.id === id);
+    if (!item) return;
+
+    const chip = document.createElement('div');
+    chip.className = 'badge bg-danger-subtle text-danger border border-danger-subtle p-2 d-flex align-items-center gap-2';
+    chip.style.fontSize = '0.85rem';
+    chip.innerHTML = `
+      <span class="fw-bold">🎁 ${item.name}</span>
+      <span class="badge bg-danger text-white">${item.drop_rate}%</span>
+      <button type="button" class="btn-close ms-1" style="font-size: 0.6rem;" onclick="removePickerItem(${item.id})"></button>
+    `;
+    container.appendChild(chip);
+
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = 'selected_item_ids';
+    hidden.value = id;
+    hiddenContainer.appendChild(hidden);
+  });
+}
+
+function addSelectedPickerItem() {
+  const select = document.getElementById('item_picker_select');
+  const val = parseInt(select.value);
+  if (!val) return;
+
+  if (!currentSelectedIds.includes(val)) {
+    currentSelectedIds.push(val);
+    renderActivePoolChips();
+  }
+  select.value = '';
+}
+
+function removePickerItem(id) {
+  currentSelectedIds = currentSelectedIds.filter(i => i !== id);
+  renderActivePoolChips();
+}
+
+function selectAllPickerItems() {
+  currentSelectedIds = itemsData.map(i => i.id);
+  renderActivePoolChips();
+}
+
+function clearAllPickerItems() {
+  currentSelectedIds = [];
+  renderActivePoolChips();
+}
+
+function toggleRewardInputs() {
+  const type = document.getElementById('modal_item_type').value;
+  const goodsDiv = document.getElementById('goods_select_div');
+  const rewardValDiv = document.getElementById('reward_value_div');
+  const rewardLabel = document.getElementById('reward_value_label');
+  const rewardHelp = document.getElementById('reward_value_help');
+
+  if (type === 'goods_item') {
+    goodsDiv.style.display = 'block';
+    rewardValDiv.style.display = 'none';
+  } else if (type === 'balance_reward') {
+    goodsDiv.style.display = 'none';
+    rewardValDiv.style.display = 'block';
+    rewardLabel.innerText = 'Số tiền thưởng (VND)';
+    rewardHelp.innerText = 'VD: 50000 (Tự động cộng 50.000 VND vào tài khoản người dùng)';
+  } else if (type === 'promo_code') {
+    goodsDiv.style.display = 'none';
+    rewardValDiv.style.display = 'block';
+    rewardLabel.innerText = 'Phần trăm giảm giá (%)';
+    rewardHelp.innerText = 'VD: 20 (Tự động tạo Mã Giảm Giá 20% dùng 1 lần)';
+  } else {
+    goodsDiv.style.display = 'none';
+    rewardValDiv.style.display = 'block';
+    rewardLabel.innerText = 'Nội dung Quà tặng / Giftcode';
+    rewardHelp.innerText = 'Nội dung tin nhắn nhận quà gửi cho người dùng';
+  }
+}
 
 function openCreateItemModal() {
   document.getElementById('gachaModalLabel').innerText = '🎁 Thêm Vật phẩm Gacha mới';
   document.getElementById('modal_item_id').value = '';
   document.getElementById('modal_name').value = '';
   document.getElementById('modal_description').value = '';
-  document.getElementById('modal_item_type').value = 'text_gift';
+  document.getElementById('modal_item_type').value = 'balance_reward';
+  document.getElementById('modal_goods_id').value = '';
   document.getElementById('modal_reward_value').value = '';
   document.getElementById('modal_drop_rate').value = '10.0';
   document.getElementById('modal_stock_quantity').value = '-1';
   document.getElementById('modal_image_url').value = '';
   document.getElementById('modal_item_is_active').checked = true;
+
+  toggleRewardInputs();
 
   const modal = new bootstrap.Modal(document.getElementById('gachaItemModal'));
   modal.show();
@@ -275,14 +444,19 @@ function openEditItemModal(id) {
   document.getElementById('modal_name').value = item.name;
   document.getElementById('modal_description').value = item.description || '';
   document.getElementById('modal_item_type').value = item.item_type;
+  document.getElementById('modal_goods_id').value = item.goods_id || '';
   document.getElementById('modal_reward_value').value = item.reward_value || '';
   document.getElementById('modal_drop_rate').value = item.drop_rate;
   document.getElementById('modal_stock_quantity').value = item.stock_quantity;
   document.getElementById('modal_image_url').value = item.image_url || '';
   document.getElementById('modal_item_is_active').checked = !!item.is_active;
 
+  toggleRewardInputs();
+
   const modal = new bootstrap.Modal(document.getElementById('gachaItemModal'));
   modal.show();
 }
+
+document.addEventListener('DOMContentLoaded', renderActivePoolChips);
 </script>
 {% endblock %}

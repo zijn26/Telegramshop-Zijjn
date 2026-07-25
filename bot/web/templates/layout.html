@@ -20,21 +20,25 @@
         </button>
         <div class="collapse navbar-collapse flex-column align-items-start" id="navbarSupportedContent">
           {{ display_menu(admin._menu, request) }}
-          <div class="nav-item w-100 mt-2 pt-2 border-top border-white-10">
-            <a class="nav-link text-warning font-weight-bold" href="/admin/content-manager">
-              <span class="nav-link-icon me-2"><i class="fa fa-th-large"></i></span>
-              <span class="nav-link-title">📌 Quản lý trang nội dung</span>
-            </a>
-          </div>
-          <div class="nav-item">
-            <a class="nav-link" href="/admin/gacha-manager">
-              <span class="nav-link-icon me-2"><i class="fa fa-gamepad"></i></span>
-              <span class="nav-link-title">🎰 Quản lý Gacha</span>
-            </a>
+          
+          <div class="w-100 mt-3 pt-3 border-top border-white-10">
+            <div class="text-white-50 small font-weight-bold text-uppercase mb-2 px-2">🚀 Công Cụ Tùy Chỉnh</div>
+            <div class="nav-item mb-2">
+              <a class="nav-link text-warning font-weight-bold p-2 rounded bg-white-10" href="/admin/gacha-manager">
+                <span class="nav-link-icon me-2 text-danger fs-5"><i class="fa fa-gamepad"></i></span>
+                <span class="nav-link-title">🎰 Quản lý Gacha</span>
+              </a>
+            </div>
+            <div class="nav-item">
+              <a class="nav-link text-info font-weight-bold p-2 rounded bg-white-10" href="/admin/content-manager">
+                <span class="nav-link-icon me-2 text-warning fs-5"><i class="fa fa-th-large"></i></span>
+                <span class="nav-link-title">📌 Quản lý Trang Nội Dung</span>
+              </a>
+            </div>
           </div>
         </div>
       </nav>
-      <div class="mt-3 px-2">
+      <div class="mt-3 px-2 w-100">
         <label class="form-label text-white-50 small mb-1" for="admin-language" data-i18n="Language">Language</label>
         <select id="admin-language" class="form-select form-select-sm" aria-label="Language">
           <option value="vi">Tiếng Việt</option>
@@ -42,26 +46,45 @@
         </select>
       </div>
       {% if admin.authentication_backend %}
-      <a href="{{ request.url_for('admin:logout') }}" class="btn btn-secondary btn-icon mt-3">
-        <i class="fa fa-sign-out"></i>
-        <span data-i18n="Logout">Logout</span>
+      <a href="{{ request.url_for('admin:logout') }}" class="btn btn-secondary btn-icon mt-3 w-100">
+        <i class="fa fa-sign-out me-2"></i>
+        <span data-i18n="Logout">Đăng Xuất</span>
       </a>
       {% endif %}
     </div>
   </aside>
+
   <div class="page-wrapper">
     <div class="container-fluid">
-      <div class="page-header d-print-none">
+      <!-- Top Quick Navigation Header Bar -->
+      <div class="page-header d-print-none py-3 border-bottom mb-3">
         {% block content_header %}
         <div class="row align-items-center">
           <div class="col">
-            <h2 class="page-title">{{ title }}</h2>
-            <div class="page-pretitle">{{ subtitle }}</div>
+            <h2 class="page-title text-primary fw-bold mb-1">{{ title }}</h2>
+            <div class="page-pretitle text-muted">{{ subtitle }}</div>
+          </div>
+          <div class="col-auto ms-auto d-print-none">
+            <div class="btn-list d-flex flex-wrap gap-2">
+              <a href="/admin/gacha-manager" class="btn btn-danger shadow-sm text-white fw-bold px-3">
+                <i class="fa fa-gamepad me-1"></i> 🎰 Quản Lý Gacha
+              </a>
+              <a href="/admin/content-manager" class="btn btn-warning shadow-sm text-dark fw-bold px-3">
+                <i class="fa fa-th-large me-1"></i> 📌 Trang Nội Dung
+              </a>
+              <a href="/admin/goods/list" class="btn btn-outline-primary fw-bold px-3">
+                <i class="fa fa-shopping-bag me-1"></i> 📦 Cửa Hàng
+              </a>
+              <a href="/admin/user/list" class="btn btn-outline-secondary fw-bold px-3">
+                <i class="fa fa-users me-1"></i> 👥 Khách Hàng
+              </a>
+            </div>
           </div>
         </div>
         {% endblock %}
       </div>
     </div>
+
     <div class="page-body flex-grow-1">
       <div class="container-fluid">
         <div class="row row-deck row-cards">
@@ -71,37 +94,50 @@
     </div>
   </div>
 </div>
+
+<!-- Telegram HTML Floating Formatting Toolbar -->
 <div class="html-toolbar" aria-label="Telegram HTML editor">
-  <button type="button" id="html-toolbar-toggle" class="html-toolbar-toggle" title="Telegram HTML tools">&lt;/&gt;</button>
+  <button type="button" id="html-toolbar-toggle" class="btn btn-primary shadow-lg fw-bold px-3 py-2 rounded-pill d-flex align-items-center gap-2" style="border: 2px solid #ffffff;">
+    <i class="fa fa-code"></i>
+    <span>Soạn Thảo HTML Telegram</span>
+  </button>
+  
   <div id="html-toolbar-panel" class="html-toolbar-panel" hidden>
-    <div class="html-toolbar-title">Telegram HTML</div>
-    <div class="html-toolbar-grid">
-      <button type="button" data-format="bold"><b>B</b><span>Đậm</span></button>
-      <button type="button" data-format="italic"><i>I</i><span>Nghiêng</span></button>
+    <div class="html-toolbar-title d-flex justify-content-between align-items-center">
+      <span><i class="fa fa-magic me-1"></i>Định dạng Telegram HTML</span>
+      <button type="button" class="btn-close btn-sm" onclick="document.getElementById('html-toolbar-panel').hidden = true;"></button>
+    </div>
+    <div class="html-toolbar-grid mt-2">
+      <button type="button" data-format="bold"><b>B</b><span>In Đậm</span></button>
+      <button type="button" data-format="italic"><i>I</i><span>In Nghiêng</span></button>
       <button type="button" data-format="underline"><u>U</u><span>Gạch chân</span></button>
       <button type="button" data-format="strike"><s>S</s><span>Gạch ngang</span></button>
       <button type="button" data-format="spoiler">◼<span>Spoiler</span></button>
-      <button type="button" data-format="quote">❝<span>Quote</span></button>
+      <button type="button" data-format="quote">❝<span>Trích dẫn</span></button>
       <button type="button" data-format="quote-expandable">❯<span>Quote gọn</span></button>
-      <button type="button" data-format="code">&lt;/&gt;<span>Code</span></button>
-      <button type="button" data-format="pre">▤<span>Khối code</span></button>
+      <button type="button" data-format="code">&lt;/&gt;<span>Dòng Code</span></button>
+      <button type="button" data-format="pre">▤<span>Khối Code</span></button>
       <button type="button" data-format="pre-python">Py<span>Python</span></button>
-      <button type="button" data-format="link">↗<span>Link</span></button>
-      <button type="button" data-format="delivery">📦<span>{% raw %}{{delivery}}{% endraw %}</span></button>
+      <button type="button" data-format="link">↗<span>Chèn Link</span></button>
+      <button type="button" data-format="delivery">📦<span>Biến Quà</span></button>
     </div>
-    <p>Chọn chữ trong ô nhập rồi bấm định dạng.</p>
+    <p class="text-muted small mt-2 mb-0">Bôi đen văn bản trong ô nhập rồi bấm phím định dạng trên.</p>
   </div>
-</div><style>
+</div>
+
+<style>
   :root { --tblr-primary: #4f46e5; --tblr-primary-rgb: 79, 70, 229; }
-  .navbar-vertical { background: linear-gradient(180deg, #111827 0%, #1e1b4b 100%) !important; box-shadow: 4px 0 24px rgba(15, 23, 42, .16); }
-  .navbar-brand h3 { font-weight: 800; letter-spacing: -.03em; }
+  .navbar-vertical { background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%) !important; box-shadow: 4px 0 24px rgba(15, 23, 42, .16); }
+  .navbar-brand h3 { font-weight: 800; letter-spacing: -.03em; color: #ffffff !important; }
   .page-wrapper { background: #f8fafc; }
-  .page-header { padding: 1.5rem 0 1rem; }
+  .page-header { padding: 1rem 0; background: #ffffff; margin-bottom: 1.5rem; border-radius: 12px; padding: 1rem 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
   .card, .table-responsive { border-radius: 14px; box-shadow: 0 5px 20px rgba(15, 23, 42, .06); }
   .card { border: 1px solid #e2e8f0; }
   .table thead th { background: #eef2ff; color: #3730a3; font-weight: 700; }
   #admin-language { border-radius: 9px; border: 1px solid rgba(255,255,255,.24); background: rgba(255,255,255,.12); color: #fff; }
   #admin-language option { color: #111827; background: #fff; }
+  .bg-white-10 { background: rgba(255, 255, 255, 0.08); }
+  .bg-white-10:hover { background: rgba(255, 255, 255, 0.16) !important; }
   @media (max-width: 991.98px) {
     .navbar-vertical .container-fluid { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; min-height: 72px; }
     .navbar-brand { margin: 0; }
@@ -128,165 +164,77 @@
   .admin-guide-hero { border-radius: 16px; padding: 1.4rem; color: #fff; background: linear-gradient(135deg,#4338ca,#2563eb); box-shadow: 0 12px 28px rgba(67,56,202,.22); }
   .admin-guide-step { height: 100%; border-left: 4px solid #818cf8; }
   .admin-guide-step .step-number { display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%; background:#eef2ff; color:#4338ca; font-weight:800; margin-right:.35rem; }
-  [data-lang] { display: none; }  .html-toolbar { position: fixed; right: 22px; bottom: 22px; z-index: 1050; }
-  .html-toolbar-toggle { width: 52px; height: 52px; border: 0; border-radius: 50%; background: #4f46e5; color: #fff; font-weight: 800; font-size: 1rem; box-shadow: 0 10px 24px rgba(79,70,229,.35); }
-  .html-toolbar-toggle:hover { background: #4338ca; transform: translateY(-1px); }
-  .html-toolbar-panel { position: absolute; right: 0; bottom: 64px; width: 310px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 16px 40px rgba(15,23,42,.2); }
-  .html-toolbar-title { color: #312e81; font-weight: 800; margin-bottom: 9px; }
-  .html-toolbar-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .html-toolbar-grid button { display:flex; flex-direction:column; align-items:center; gap:2px; min-height:48px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; color:#334155; font-size:.72rem; }
-  .html-toolbar-grid button:hover { background:#eef2ff; border-color:#a5b4fc; color:#3730a3; }
-  .html-toolbar-grid button > :first-child { font-size: .92rem; font-weight:800; }
-  .html-toolbar-panel p { margin:10px 0 0; color:#64748b; font-size:.75rem; }
-  @media (max-width: 576px) { .html-toolbar { right: 14px; bottom: 14px; } .html-toolbar-panel { width: 288px; } }</style><script>
-(() => {
-  const translations = {
-    vi: {
-      "Language": "Ngôn ngữ", "Logout": "Đăng xuất", "Create": "Tạo mới", "Edit": "Chỉnh sửa",
-      "Delete": "Xóa", "Search": "Tìm kiếm", "Reset": "Đặt lại", "Save": "Lưu",
-      "Save and continue editing": "Lưu và tiếp tục chỉnh sửa", "Save and add another": "Lưu và thêm mới",
-      "Actions": "Thao tác", "Details": "Chi tiết", "Back": "Quay lại", "List": "Danh sách",
-      "No results found.": "Không có kết quả.", "Are you sure you want to delete this item?": "Bạn có chắc muốn xóa mục này không?",
-      "Users": "Người dùng", "User": "Người dùng", "Roles": "Vai trò", "Role": "Vai trò",
-      "Categories": "Danh mục", "Category": "Danh mục", "Products": "Sản phẩm", "Product": "Sản phẩm",
-      "Stock Items": "Kho hàng", "Stock Item": "Kho hàng", "Purchases": "Đơn mua", "Purchase": "Đơn mua",
-      "Operations": "Giao dịch", "Operation": "Giao dịch", "Payments": "Thanh toán", "Payment": "Thanh toán",
-      "Promo Codes": "Mã giảm giá", "Promo Code": "Mã giảm giá", "Reviews": "Đánh giá",
-      "Audit Logs": "Nhật ký quản trị", "Audit Log": "Nhật ký quản trị",
-      "Telegram Shop Admin": "Quản trị Telegram Shop", "Export": "Xuất CSV",
-      "Referral Earnings": "Thu nhập giới thiệu", "Referral Earning": "Thu nhập giới thiệu",
-      "Select all": "Chọn tất cả", "prev": "trước", "next": "sau", "Show": "Hiển thị",
-      "id": "ID", "telegram_id": "ID Telegram", "user_id": "ID người dùng",
-      "referrer_id": "ID người giới thiệu", "referral_id": "ID người được giới thiệu",
-      "amount": "Số tiền", "original_amount": "Số tiền gốc", "created_at": "Ngày tạo",
-      "registration_date": "Ngày đăng ký", "operation_time": "Thời gian giao dịch",
-      "balance": "Số dư", "role_id": "ID vai trò", "is_blocked": "Bị chặn",
-      "name": "Tên", "description": "Mô tả", "price": "Giá", "category_id": "ID danh mục",
-      "item_id": "ID sản phẩm", "product_name": "Tên sản phẩm", "value": "Nội dung", "quantity": "Số lượng", "is_infinity": "Không giới hạn", "delivery_template": "Mẫu mô tả giao hàng", "delivery_type": "Kiểu giao hàng", "file_path": "Tệp giao hàng", "file_name": "Tên tệp",
-      "provider": "Nhà cung cấp", "currency": "Tiền tệ", "status": "Trạng thái",
-      "code": "Mã", "discount_type": "Loại giảm giá", "discount_value": "Giá trị giảm",
-      "is_active": "Đang hoạt động", "expires_at": "Ngày hết hạn", "rating": "Điểm đánh giá",
-      "text": "Nội dung", "timestamp": "Thời gian", "level": "Mức độ", "action": "Hành động",
-      "resource_type": "Loại tài nguyên", "resource_id": "ID tài nguyên", "details": "Chi tiết",
-      "ip_address": "Địa chỉ IP",
-      "Content Page": "Trang nội dung", "Content Pages": "Trang nội dung", "Storefront Settings": "Cài đặt giao diện bot",
-      "button_text": "Nhãn nút", "content": "Nội dung", "parent_id": "Trang cha", "main_menu_description": "Mô tả menu chính", "shop_description": "Mô tả cửa hàng",
-      "media": "Ảnh/GIF/video", "media_type": "Loại media", "sort_order": "Thứ tự",
-      "Parent page": "Trang cha", "Media type": "Loại media",
-      "Main menu (no parent)": "Menu chính (không có trang cha)",
-      "No media": "Không có media", "Photo": "Ảnh", "GIF animation": "GIF động", "Video": "Video", "Text": "Văn bản", "File": "Tệp", "Text + file": "Văn bản + tệp", "Stock input mode": "Cách nhập hàng", "One text": "Một nội dung text", "One file": "Một tệp", "One text + file": "Một nội dung text + tệp", "Many files": "Nhiều tệp", "Text file (one line = one stock item)": "File text (mỗi dòng là một hàng)", "Files to import": "Các tệp cần nhập", "Text file to import": "File text cần nhập", "Choose how you want to add stock.": "Chọn cách bạn muốn nhập hàng.", "Choose several files at once. Each file becomes one stock item.": "Chọn nhiều tệp cùng lúc. Mỗi tệp là một hàng kho.", "Upload a UTF-8 .txt file. Each non-empty line becomes one stock item.": "Tải file .txt mã hóa UTF-8. Mỗi dòng không rỗng là một hàng kho.", "Text sent to the buyer for Text or Text + file.": "Nội dung gửi người mua khi chọn Văn bản hoặc Văn bản + tệp.", "File sent to the buyer for File or Text + file.": "Tệp gửi người mua khi chọn Tệp hoặc Văn bản + tệp.", "Optional delivery message. Use {% raw %}{{delivery}}{% endraw %} where the text delivery must appear.": "Mô tả cố định sau khi mua. Đặt {% raw %}{{delivery}}{% endraw %} đúng vị trí cần chèn nội dung đơn hàng.", "How many times this stock value can be sold. Use 1 for a unique code.": "Số lần có thể bán bản ghi kho này. Dùng 1 cho một mã/tài khoản duy nhất.", "Text delivered to the buyer. Required for Text or Text + file.": "Nội dung text gửi cho người mua. Bắt buộc với kiểu Văn bản hoặc Văn bản + tệp.", "File delivered to the buyer. Required for File or Text + file.": "Tệp gửi cho người mua. Bắt buộc với kiểu Tệp hoặc Văn bản + tệp."
-    },
-    en: {}
-  };
-  const original = new WeakMap();
-  function translateNode(node, language) {
-    const text = node.nodeValue;
-    if (!text || !text.trim()) return;
-    if (!original.has(node)) original.set(node, text);
-    const source = original.get(node);
-    const key = source.trim();
-    let translated = translations[language][key] || key;
-    if (language === "vi") {
-      translated = translated.replace(/^Showing (\d+) to (\d+) of (\d+) items$/, "Đang hiển thị $1 đến $2 trên $3 mục");
-      translated = translated.replace(/^(\d+) \/ Page$/, "$1 / trang");
-      translated = translated.replace(/^Search: /, "Tìm kiếm: ");
-    }
-    node.nodeValue = source.replace(key, translated);
-  }
-  function applyLanguage(language) {
-    document.documentElement.lang = language;
-    document.querySelectorAll("[data-lang]").forEach((element) => { element.style.display = element.dataset.lang === language ? "" : "none"; });
-    document.querySelectorAll('[data-i18n]').forEach((element) => {
-      const key = element.dataset.i18n;
-      element.textContent = translations[language][key] || key;
+  [data-lang] { display: none; }
+  
+  .html-toolbar { position: fixed; right: 24px; bottom: 24px; z-index: 1050; }
+  .html-toolbar-panel { position: absolute; right: 0; bottom: 60px; width: 330px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff; box-shadow: 0 20px 48px rgba(15,23,42,.24); }
+  .html-toolbar-title { color: #312e81; font-weight: 800; margin-bottom: 12px; font-size: 0.95rem; }
+  .html-toolbar-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .html-toolbar-grid button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-height:52px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; color:#334155; font-size:.75rem; transition: all 0.2s ease; }
+  .html-toolbar-grid button:hover { background:#eef2ff; border-color:#818cf8; color:#3730a3; transform: translateY(-2px); }
+  .html-toolbar-grid button > :first-child { font-size: 1rem; font-weight:800; }
+</style>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const toggleBtn = document.getElementById("html-toolbar-toggle");
+  const panel = document.getElementById("html-toolbar-panel");
+  let activeTextarea = null;
+
+  if (toggleBtn && panel) {
+    toggleBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      panel.hidden = !panel.hidden;
     });
-    document.querySelectorAll('[placeholder], [title], [aria-label]').forEach((element) => {
-      ["placeholder", "title", "aria-label"].forEach((attribute) => {
-        const source = element.getAttribute(attribute);
-        if (!source) return;
-        let translated = translations[language][source] || source;
-        if (language === "vi") translated = translated.replace(/^Search: /, "Tìm kiếm: ");
-        element.setAttribute(attribute, translated);
-      });
+
+    document.addEventListener("click", function (e) {
+      if (!panel.contains(e.target) && !toggleBtn.contains(e.target)) {
+        panel.hidden = true;
+      }
     });
-    if (language === "vi") {
-      document.querySelectorAll("p").forEach((element) => {
-        const match = element.textContent.replace(/\s+/g, " ").trim().match(/^Showing (\d+) to (\d+) of (\d+) items$/);
-        if (match) element.textContent = `Đang hiển thị ${match[1]} đến ${match[2]} trên ${match[3]} mục`;
-      });
-    }
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode);
-    nodes.forEach((node) => translateNode(node, language));
   }
-  const toolbarToggle = document.getElementById("html-toolbar-toggle");
-  const toolbarPanel = document.getElementById("html-toolbar-panel");
-  let activeTextField = null;
-  document.addEventListener("focusin", (event) => {
-    if (event.target.matches("textarea, input[type='text']")) activeTextField = event.target;
+
+  document.addEventListener("focusin", function (e) {
+    if (e.target.tagName === "TEXTAREA" || (e.target.tagName === "INPUT" && e.target.type === "text")) {
+      activeTextarea = e.target;
+    }
   });
-  toolbarToggle.addEventListener("click", () => { toolbarPanel.hidden = !toolbarPanel.hidden; });
-  function insertHtml(prefix, suffix) {
-    if (!activeTextField) return;
-    const start = activeTextField.selectionStart ?? activeTextField.value.length;
-    const end = activeTextField.selectionEnd ?? start;
-    const selected = activeTextField.value.slice(start, end) || "text";
-    activeTextField.value = activeTextField.value.slice(0, start) + prefix + selected + suffix + activeTextField.value.slice(end);
-    activeTextField.focus();
-    activeTextField.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
-    activeTextField.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-  const formats = { bold:["<b>","</b>"], italic:["<i>","</i>"], underline:["<u>","</u>"], strike:["<s>","</s>"], spoiler:["<tg-spoiler>","</tg-spoiler>"], quote:["<blockquote>","</blockquote>"], "quote-expandable":["<blockquote expandable>","</blockquote>"], code:["<code>","</code>"], pre:["<pre>","</pre>"], "pre-python":["<pre><code class=\"language-python\">","</code></pre>"] };
-  toolbarPanel.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-format]");
-    if (!button) return;
-    const format = button.dataset.format;
-    if (format === "link") { const url = window.prompt("URL cho liên kết:", "https://"); if (url) insertHtml(`<a href="${url}">`, "</a>"); return; }
-    if (format === "delivery") {
-      const deliveryTemplate = document.querySelector('[name="delivery_template"]');
-      const target = activeTextField || deliveryTemplate;
-      if (!target) return;
-      const start = target.selectionStart ?? target.value.length;
-      const end = target.selectionEnd ?? start;
-      target.value = target.value.slice(0, start) + "{% raw %}{{delivery}}{% endraw %}" + target.value.slice(end);
-      target.focus(); target.setSelectionRange(start + 12, start + 12);
-      target.dispatchEvent(new Event("input", { bubbles: true })); return;
-    }
-    insertHtml(...formats[format]);
-  });  const select = document.getElementById("admin-language");
-  const language = localStorage.getItem("admin-language") || "vi";
-  select.value = language;
-  applyLanguage(language);
-  select.addEventListener("change", () => {
-    localStorage.setItem("admin-language", select.value);
-    applyLanguage(select.value);
-  });  function stockField(name) {
-    const input = document.querySelector(`[name="${name}"]`);
-    return input && (input.closest(".mb-3") || input.closest(".form-group") || input.parentElement);
-  }
-  function toggleStockField(name, visible) {
-    const field = stockField(name);
-    if (field) field.style.display = visible ? "" : "none";
-  }
-  function configureStockImportForm() {
-    const mode = document.querySelector('[name="stock_input_mode"]');
-    if (!mode) return;
-    const sync = () => {
-      const value = mode.value;
-      const text = value === "single_text" || value === "single_both";
-      const file = value === "single_file" || value === "single_both";
-      toggleStockField("value", text);
-      toggleStockField("file_path", file);
-      toggleStockField("upload_files", value === "many_files");
-      toggleStockField("text_file", value === "text_file");
-      const submit = document.querySelector('button[type="submit"], input[type="submit"]');
-      if (submit) { submit.textContent = "Thêm"; submit.value = "Thêm"; }
-    };
-    mode.addEventListener("change", sync);
-    sync();
-  }
-  configureStockImportForm();
-})();
+
+  const buttons = document.querySelectorAll(".html-toolbar-grid button");
+  buttons.forEach(btn => {
+    btn.addEventListener("click", function () {
+      if (!activeTextarea) {
+        activeTextarea = document.querySelector("textarea") || document.querySelector("input[type='text']");
+      }
+      if (!activeTextarea) return;
+
+      const format = this.getAttribute("data-format");
+      const start = activeTextarea.selectionStart;
+      const end = activeTextarea.selectionEnd;
+      const text = activeTextarea.value;
+      const selected = text.substring(start, end) || "nội dung";
+
+      let openTag = "", closeTag = "";
+      switch (format) {
+        case "bold": openTag = "<b>"; closeTag = "</b>"; break;
+        case "italic": openTag = "<i>"; closeTag = "</i>"; break;
+        case "underline": openTag = "<u>"; closeTag = "</u>"; break;
+        case "strike": openTag = "<s>"; closeTag = "</s>"; break;
+        case "spoiler": openTag = '<tg-spoiler>'; closeTag = '</tg-spoiler>'; break;
+        case "quote": openTag = "<blockquote>"; closeTag = "</blockquote>"; break;
+        case "quote-expandable": openTag = '<blockquote expandable>'; closeTag = "</blockquote>"; break;
+        case "code": openTag = "<code>"; closeTag = "</code>"; break;
+        case "pre": openTag = "<pre>"; closeTag = "</pre>"; break;
+        case "pre-python": openTag = '<pre><code class="language-python">'; closeTag = "</code></pre>"; break;
+        case "link": openTag = '<a href="https://example.com">'; closeTag = "</a>"; break;
+        case "delivery": openTag = "{% raw %}{{delivery}}{% endraw %}"; selected = ""; break;
+      }
+
+      const replacement = openTag + selected + closeTag;
+      activeTextarea.value = text.substring(0, start) + replacement + text.substring(end);
+      activeTextarea.focus();
+      activeTextarea.setSelectionRange(start + openTag.length, start + openTag.length + selected.length);
+    });
+  });
+});
 </script>
 {% endblock %}

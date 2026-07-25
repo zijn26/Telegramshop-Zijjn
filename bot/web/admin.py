@@ -677,27 +677,6 @@ class StorefrontSettingsAdmin(AuditModelView, model=StorefrontSettings):
     icon = "fa-solid fa-store"
 
 
-class GachaSettingsAdmin(AuditModelView, model=GachaSettings):
-    name = "Gacha Settings"
-    name_plural = "Gacha Settings"
-    icon = "fa-solid fa-gamepad"
-    column_list = [GachaSettings.id, GachaSettings.spin_price, GachaSettings.is_active, GachaSettings.title]
-
-
-class GachaItemAdmin(AuditModelView, model=GachaItem):
-    name = "Gacha Item"
-    name_plural = "Gacha Items"
-    icon = "fa-solid fa-gift"
-    column_list = [GachaItem.id, GachaItem.name, GachaItem.item_type, GachaItem.reward_value, GachaItem.drop_rate, GachaItem.stock_quantity, GachaItem.is_active]
-
-
-class GachaUserWinAdmin(AuditModelView, model=GachaUserWin):
-    name = "Gacha Win Log"
-    name_plural = "Gacha Win Logs"
-    icon = "fa-solid fa-trophy"
-    column_list = [GachaUserWin.id, GachaUserWin.user_id, GachaUserWin.item_name, GachaUserWin.reward_details, GachaUserWin.won_at]
-
-
 # Health & Metrics Endpoints
 async def health_check(request: Request) -> JSONResponse:
     db_ok = True
@@ -800,9 +779,6 @@ def create_admin_app(bot: Any = None) -> Starlette:
     admin.add_view(CartItemsAdmin)
     admin.add_view(ContentPageAdmin)
     admin.add_view(StorefrontSettingsAdmin)
-    admin.add_view(GachaSettingsAdmin)
-    admin.add_view(GachaItemAdmin)
-    admin.add_view(GachaUserWinAdmin)
     if EnvKeys.REVIEWS_ENABLED == "1":
         admin.add_view(ReviewsAdmin)
 
