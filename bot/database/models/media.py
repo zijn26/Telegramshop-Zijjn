@@ -11,6 +11,7 @@ class MediaVault(Database.BASE):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     file_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    converted_file_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Permanent photo file_id for stickers/emojis
     file_unique_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     media_type: Mapped[str] = mapped_column(String(50), default="photo", nullable=False, index=True)  # photo, video, document, animation, audio, voice
     file_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

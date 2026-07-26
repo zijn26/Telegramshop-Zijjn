@@ -1,27 +1,41 @@
 import logging
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, InputMediaPhoto, InputMediaVideo, InputMediaAnimation
+from aiogram.types import CallbackQuery, InputMediaPhoto, InputMediaVideo, InputMediaAnimation, URLInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
-from bot.database.methods.media import get_roll_media_item, get_random_roll_media_index
+from bot.database.methods.media import (
+    get_roll_media_item,
+    get_random_roll_media_index,
+    update_media_vault_converted_file_id,
+)
 from bot.keyboards.inline import ngam_xinh_menu_keyboard, roll_media_keyboard
+from bot.misc.button_registry import register_system_button, get_system_button_text
+
+_STICKER_TO_PHOTO_CACHE: dict[str, str] = {}
 
 logger = logging.getLogger(__name__)
 
 router = Router(name="entertainment")
 
 
+@register_system_button(
+    key="ngam_xinh",
+    name="🌸 Ngắm xinh (Media Roll)",
+    help_text="Văn bản hiển thị khi khách chọn menu Ngắm xinh trong Khu giải trí."
+)
 @router.callback_query(F.data == "ngam_xinh_main")
 async def ngam_xinh_main_handler(call: CallbackQuery, state: FSMContext):
     """
     Sub-menu for 'Ngắm xinh' (Ngắm Video & Ngắm Ảnh/Emoji).
     """
     await state.clear()
-    text = (
+    custom_text = await get_system_button_text("ngam_xinh")
+    default_text = (
         "<b>🌸 Khu Vực Ngắm Xinh</b>\n\n"
         "Chào mừng bạn đến với góc thư giãn! Hãy chọn loại nội dung bạn muốn xem bên dưới:"
     )
+    text = custom_text or default_text
     markup = ngam_xinh_menu_keyboard()
 
     if call.message.text is not None:
@@ -114,12 +128,39 @@ async def show_roll_media(call: CallbackQuery, category: str, index: int):
                 await call.message.answer_animation(animation=item.file_id, caption=caption_text, reply_markup=markup, parse_mode="HTML")
 
         elif item.media_type in ("sticker", "emoji"):
+            # Check permanent converted_file_id in DB or in-memory cache for INSTANT zero-lag edit_media
+            cached_photo_id = item.converted_file_id or _STICKER_TO_PHOTO_CACHE.get(item.file_id)
+            if cached_photo_id:
+                media = InputMediaPhoto(media=cached_photo_id, caption=caption_text, parse_mode="HTML")
+                try:
+                    await call.message.edit_media(media=media, reply_markup=markup)
+                    return
+                except Exception:
+                    pass
+
+            # First-time conversion: fetch file_url and send photo to extract native photo file_id
+            photo_source = item.file_id
+            try:
+                file_info = await call.bot.get_file(item.file_id)
+                if file_info and file_info.file_path:
+                    file_url = f"https://api.telegram.org/file/bot{call.bot.token}/{file_info.file_path}"
+                    photo_source = URLInputFile(file_url, filename="emoji.png")
+            except Exception as fe:
+                logger.warning("Could not get_file for sticker %s: %s", item.file_id[:15], fe)
+
             try:
                 await call.message.delete()
             except Exception:
                 pass
-            await call.message.answer_sticker(sticker=item.file_id)
-            await call.message.answer(caption_text, reply_markup=markup, parse_mode="HTML")
+
+            try:
+                sent_msg = await call.message.answer_photo(photo=photo_source, caption=caption_text, reply_markup=markup, parse_mode="HTML")
+                if sent_msg and sent_msg.photo:
+                    conv_id = sent_msg.photo[-1].file_id
+                    _STICKER_TO_PHOTO_CACHE[item.file_id] = conv_id
+                    await update_media_vault_converted_file_id(item.id, conv_id)
+            except Exception:
+                await call.message.answer_document(document=item.file_id, caption=caption_text, reply_markup=markup, parse_mode="HTML")
 
         else:  # photo / default
             media = InputMediaPhoto(media=item.file_id, caption=caption_text, parse_mode="HTML")
@@ -130,7 +171,10 @@ async def show_roll_media(call: CallbackQuery, category: str, index: int):
                     await call.message.delete()
                 except Exception:
                     pass
-                await call.message.answer_photo(photo=item.file_id, caption=caption_text, reply_markup=markup, parse_mode="HTML")
+                try:
+                    await call.message.answer_photo(photo=item.file_id, caption=caption_text, reply_markup=markup, parse_mode="HTML")
+                except Exception:
+                    await call.message.answer_document(document=item.file_id, caption=caption_text, reply_markup=markup, parse_mode="HTML")
 
     except Exception as e:
         logger.error("Error rendering roll_media #%s: %s", index, e)

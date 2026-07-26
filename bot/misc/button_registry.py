@@ -49,6 +49,8 @@ def _init_default_buttons():
         ("reviews", "⭐ Đánh giá (Reviews)", "Văn bản đầu trang đánh giá sản phẩm."),
         ("operation_history", "📜 Lịch sử giao dịch (History)", "Văn bản đầu trang lịch sử nạp/mua."),
         ("entertainment", "🎮 Giải trí (Entertainment)", "Văn bản hiển thị khi nhấn nút Giải trí ở Menu chính."),
+        ("ngam_xinh", "🌸 Ngắm xinh (Media Roll)", "Văn bản hiển thị khi khách chọn menu Ngắm xinh trong Khu giải trí."),
+        ("gacha_main", "🎰 Vòng quay Gacha (Gacha Wheel)", "Văn bản giới thiệu khi mở Vòng quay Gacha."),
     ]
     for key, name, help_txt in defaults:
         if key not in _DISCOVERED_BUTTONS:

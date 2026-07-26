@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 async def record_media_vault(
     file_id: str,
     media_type: str,
+    converted_file_id: Optional[str] = None,
     file_unique_id: Optional[str] = None,
     file_name: Optional[str] = None,
     file_size: Optional[int] = None,
@@ -22,10 +23,14 @@ async def record_media_vault(
     async with Database().session() as session:
         existing = (await session.scalars(select(MediaVault).where(MediaVault.file_id == file_id))).first()
         if existing:
+            if converted_file_id and not existing.converted_file_id:
+                existing.converted_file_id = converted_file_id
+                await session.commit()
             return existing
 
         media = MediaVault(
             file_id=file_id,
+            converted_file_id=converted_file_id,
             file_unique_id=file_unique_id,
             media_type=media_type,
             file_name=file_name,
@@ -120,6 +125,11 @@ async def verify_and_clean_stale_media(bot) -> Tuple[int, int]:
             await session.commit()
             logger.info("Cleaned up %d stale MediaVault records out of %d checked.", total_deleted, total_checked)
 
+    try:
+        await preconvert_all_stickers(bot)
+    except Exception as pe:
+        logger.warning("Error pre-converting stickers during cleanup: %s", pe)
+
     return total_checked, total_deleted
 
 
@@ -211,3 +221,65 @@ async def get_random_roll_media_index(category: str) -> int:
         if total_count <= 1:
             return 0
         return random.randint(0, total_count - 1)
+
+
+async def update_media_vault_converted_file_id(media_id: int, converted_file_id: str):
+    """Save permanently converted photo file_id for a sticker/emoji in PostgreSQL database."""
+    async with Database().session() as session:
+        item = (await session.scalars(select(MediaVault).where(MediaVault.id == media_id))).first()
+        if item:
+            item.converted_file_id = converted_file_id
+            await session.commit()
+
+
+async def preconvert_all_stickers(bot) -> int:
+    """Pre-convert all stickers/emojis in MediaVault table into Photo file_ids for instant zero-lag display."""
+    if not bot:
+        return 0
+
+    from aiogram.types import URLInputFile
+    converted_count = 0
+
+    async with Database().session() as session:
+        items = (await session.scalars(
+            select(MediaVault).where(
+                (MediaVault.media_type.in_(["sticker", "emoji"])) &
+                ((MediaVault.converted_file_id.is_(None)) | (MediaVault.converted_file_id == ""))
+            )
+        )).all()
+
+        if not items:
+            return 0
+
+        bot_info = None
+        try:
+            bot_info = await bot.get_me()
+        except Exception:
+            pass
+
+        target_chat_id = bot_info.id if bot_info else None
+
+        for item in items:
+            try:
+                file_info = await bot.get_file(item.file_id)
+                if file_info and file_info.file_path:
+                    file_url = f"https://api.telegram.org/file/bot{bot.token}/{file_info.file_path}"
+                    photo_input = URLInputFile(file_url, filename="emoji.png")
+                    
+                    if target_chat_id:
+                        sent_msg = await bot.send_photo(chat_id=target_chat_id, photo=photo_input)
+                        if sent_msg and sent_msg.photo:
+                            item.converted_file_id = sent_msg.photo[-1].file_id
+                            converted_count += 1
+                            try:
+                                await sent_msg.delete()
+                            except Exception:
+                                pass
+            except Exception as e:
+                logger.warning("Failed preconverting sticker #%s [%s]: %s", item.id, item.file_id[:15], e)
+
+        if converted_count > 0:
+            await session.commit()
+            logger.info("Pre-converted %d stickers/emojis into native Photo file_ids in database.", converted_count)
+
+    return converted_count

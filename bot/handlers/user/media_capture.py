@@ -86,8 +86,27 @@ async def capture_telegram_media(message: Message):
         emoji_str = stk.emoji or ""
         name_str = f"Sticker/Emoji {emoji_str} ({stk.set_name or 'Custom'})".strip()
         cap_str = caption or f"Emoji: {emoji_str} | Custom ID: {stk.custom_emoji_id or 'None'}"
+
+        converted_photo_id = None
+        try:
+            from aiogram.types import URLInputFile
+            file_info = await message.bot.get_file(stk.file_id)
+            if file_info and file_info.file_path:
+                file_url = f"https://api.telegram.org/file/bot{message.bot.token}/{file_info.file_path}"
+                photo_input = URLInputFile(file_url, filename="emoji.png")
+                tmp_msg = await message.answer_photo(photo=photo_input)
+                if tmp_msg and tmp_msg.photo:
+                    converted_photo_id = tmp_msg.photo[-1].file_id
+                    try:
+                        await tmp_msg.delete()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
         await record_media_vault(
             file_id=stk.file_id,
+            converted_file_id=converted_photo_id,
             file_unique_id=stk.file_unique_id,
             media_type=m_type,
             file_name=name_str,
